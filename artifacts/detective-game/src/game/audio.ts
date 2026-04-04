@@ -343,67 +343,63 @@ export function stopAmbient() {
   stopCallbacks.length = 0;
 }
 
-// ─── JUMP SCARE: High-pitched human child scream ─────────────────────────────
-// Child vocal tract is ~30% shorter than adult → all formants shift up proportionally.
-// Fundamental: 450–1100 Hz range. Formants: F1~1200, F2~2600, F3~4000, F4~5200.
-// Minimal reverb (reverb causes the "ghostly" effect). No heavy distortion.
+// ─── JUMP SCARE: Ear-splitting high-pitched scream ────────────────────────────
+// Stays HIGH the whole time (no downward pitch glide = no balloon sound).
+// Loud, sharp, lots of noise/breathiness, abrupt end.
 
 export function playJumpScareSound() {
   const ac = getCtx();
   if (ac.state === "suspended") ac.resume();
   const now = ac.currentTime;
 
-  // Very small, tight room reverb — just enough to place the voice in a space,
-  // not enough to make it sound supernatural
-  const tightReverb = makeReverb(ac, 0.8, 3.5);
-  const reverbSend = ac.createGain();
-  reverbSend.gain.value = 0.18;  // low reverb mix = human, not ghost
-  tightReverb.connect(reverbSend);
-  reverbSend.connect(ac.destination);
+  // Compressor to keep volume hot without clipping
+  const comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -6;
+  comp.knee.value = 3;
+  comp.ratio.value = 4;
+  comp.attack.value = 0.001;
+  comp.release.value = 0.1;
+  comp.connect(ac.destination);
 
-  // ── VOCAL SOURCE: sawtooth (primary harmonic content) ───────────────────
+  // Tight room reverb (small amount — keeps it human, not ghostly)
+  const tightReverb = makeReverb(ac, 0.6, 4.0);
+  const rvSend = ac.createGain(); rvSend.gain.value = 0.14;
+  tightReverb.connect(rvSend); rvSend.connect(ac.destination);
+
+  // ── VOCAL SOURCE ────────────────────────────────────────────────────────
   const sawOsc = ac.createOscillator();
   sawOsc.type = "sawtooth";
-
-  // Child pitch arc: gasp at 450 Hz → sharp rise to 1100 Hz by 0.15s
-  // (children scream much higher than adults, 900-1200 Hz is realistic)
-  // Sustains with wavering → slow fall as breath runs out → fade
-  sawOsc.frequency.setValueAtTime(450, now);
-  sawOsc.frequency.exponentialRampToValueAtTime(1100, now + 0.15);
-  sawOsc.frequency.exponentialRampToValueAtTime(1060, now + 0.5);
-  sawOsc.frequency.exponentialRampToValueAtTime(1150, now + 1.0);
-  sawOsc.frequency.exponentialRampToValueAtTime(1020, now + 1.6);
-  sawOsc.frequency.exponentialRampToValueAtTime(1080, now + 2.1);
-  sawOsc.frequency.exponentialRampToValueAtTime(900, now + 2.7);
-  sawOsc.frequency.exponentialRampToValueAtTime(600, now + 3.3);
-  sawOsc.frequency.exponentialRampToValueAtTime(320, now + 4.0);
-
-  // Sine mixed in for warmth — stops it sounding purely synthetic
   const sineOsc = ac.createOscillator();
   sineOsc.type = "sine";
-  sineOsc.frequency.setValueAtTime(450, now);
-  sineOsc.frequency.exponentialRampToValueAtTime(1100, now + 0.15);
-  sineOsc.frequency.exponentialRampToValueAtTime(1060, now + 0.5);
-  sineOsc.frequency.exponentialRampToValueAtTime(1150, now + 1.0);
-  sineOsc.frequency.exponentialRampToValueAtTime(1020, now + 1.6);
-  sineOsc.frequency.exponentialRampToValueAtTime(1080, now + 2.1);
-  sineOsc.frequency.exponentialRampToValueAtTime(900, now + 2.7);
-  sineOsc.frequency.exponentialRampToValueAtTime(600, now + 3.3);
-  sineOsc.frequency.exponentialRampToValueAtTime(320, now + 4.0);
 
-  const sawMix = ac.createGain(); sawMix.gain.value = 0.72;
-  const sineMix = ac.createGain(); sineMix.gain.value = 0.28;
+  // Pitch: rush from 380Hz → 1350Hz in 0.12s, then LOCK at ~1300Hz
+  // No slow descent — that's the balloon. Stay high, end abruptly.
+  [sawOsc, sineOsc].forEach((osc) => {
+    osc.frequency.setValueAtTime(380, now);
+    osc.frequency.exponentialRampToValueAtTime(1350, now + 0.12);
+    // Tiny irregular micro-drifts to stay human, not mechanical
+    osc.frequency.setValueAtTime(1350, now + 0.12);
+    osc.frequency.linearRampToValueAtTime(1320, now + 0.5);
+    osc.frequency.linearRampToValueAtTime(1360, now + 1.0);
+    osc.frequency.linearRampToValueAtTime(1310, now + 1.5);
+    osc.frequency.linearRampToValueAtTime(1380, now + 2.0);
+    osc.frequency.linearRampToValueAtTime(1330, now + 2.5);
+    osc.frequency.linearRampToValueAtTime(1300, now + 3.0);
+    // Hold and end — no long glide down
+  });
+
+  const sawMix = ac.createGain(); sawMix.gain.value = 0.68;
+  const sineMix = ac.createGain(); sineMix.gain.value = 0.32;
   sawOsc.connect(sawMix);
   sineOsc.connect(sineMix);
 
-  // ── VIBRATO: two LFOs at slightly different rates (irregular = human) ────
-  // Children's vibrato is faster and shallower than adults
+  // ── VIBRATO: two mismatched LFOs = irregular, human feel ────────────────
   const vibLfo1 = ac.createOscillator();
   const vibGain1 = ac.createGain();
   vibLfo1.type = "sine";
-  vibLfo1.frequency.setValueAtTime(0, now);            // starts silent (gasp)
-  vibLfo1.frequency.linearRampToValueAtTime(9.5, now + 0.3); // fast child-like rate
-  vibGain1.gain.value = 22;   // depth in Hz — tighter than adult
+  vibLfo1.frequency.setValueAtTime(0, now);
+  vibLfo1.frequency.linearRampToValueAtTime(10, now + 0.25); // fast child vibrato
+  vibGain1.gain.value = 30; // wider depth = more urgent/panicked
   vibLfo1.connect(vibGain1);
   vibGain1.connect(sawOsc.frequency);
   vibGain1.connect(sineOsc.frequency);
@@ -411,131 +407,127 @@ export function playJumpScareSound() {
   const vibLfo2 = ac.createOscillator();
   const vibGain2 = ac.createGain();
   vibLfo2.type = "sine";
-  vibLfo2.frequency.value = 10.3; // second LFO slightly different = irregular
-  vibGain2.gain.value = 11;
+  vibLfo2.frequency.value = 11.4; // different rate = irregular
+  vibGain2.gain.value = 16;
   vibLfo2.connect(vibGain2);
   vibGain2.connect(sawOsc.frequency);
   vibGain2.connect(sineOsc.frequency);
 
-  // ── BREATHINESS: airy noise component (sharp/high) ───────────────────────
-  // Adds the breathy, raw edge of a real scream — especially prominent at high pitch
-  const breathBufSize = Math.floor(ac.sampleRate * 4.5);
+  // Amplitude tremolo — voice shakes when screaming hard
+  const tremoloLfo = ac.createOscillator();
+  const tremoloGain = ac.createGain();
+  tremoloLfo.type = "sine";
+  tremoloLfo.frequency.value = 13; // fast shake
+  tremoloGain.gain.value = 0.06;
+  tremoloLfo.connect(tremoloGain);
+  // connected to masterScream.gain below
+
+  // ── BREATHINESS: high noise layer — the "rawness" of a real scream ───────
+  // This is what makes it sound human vs synthetic. More = more human.
+  const breathBufSize = Math.floor(ac.sampleRate * 3.5);
   const breathBuf = ac.createBuffer(1, breathBufSize, ac.sampleRate);
   const bd = breathBuf.getChannelData(0);
   for (let i = 0; i < breathBufSize; i++) bd[i] = Math.random() * 2 - 1;
   const breathSrc = ac.createBufferSource();
   breathSrc.buffer = breathBuf;
-  // High-pass the noise — keeps only the airy top end
   const breathHP = ac.createBiquadFilter();
   breathHP.type = "highpass";
-  breathHP.frequency.value = 3500;
+  breathHP.frequency.value = 2800; // only high-frequency air
   const breathGain = ac.createGain();
-  breathGain.gain.value = 0.09;
+  breathGain.gain.value = 0.28; // much louder than before — adds rawness
   breathSrc.connect(breathHP);
   breathHP.connect(breathGain);
 
-  // ── FORMANT FILTERS: child vocal tract proportions ───────────────────────
-  // Child vocal tract ~30% shorter → all formants ~30% higher than adult values
+  // ── FORMANT FILTERS: child vocal tract (all frequencies shifted up) ──────
+  // Formants stay FIXED — not tracking pitch down, that's what caused the balloon
 
-  // F1 — ~1200 Hz  (adult equivalent ~820 Hz, ×1.46 for child)
-  const f1 = ac.createBiquadFilter();
-  f1.type = "bandpass";
-  f1.frequency.setValueAtTime(900, now);
-  f1.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
-  f1.frequency.setValueAtTime(1200, now + 2.8);
-  f1.frequency.exponentialRampToValueAtTime(950, now + 4.0);
-  f1.Q.value = 8;
+  const f1 = ac.createBiquadFilter(); // ~1250 Hz — chest/open vowel
+  f1.type = "bandpass"; f1.frequency.value = 1250; f1.Q.value = 10;
 
-  // F2 — ~2600 Hz  (adult ~1600 Hz)
-  const f2 = ac.createBiquadFilter();
-  f2.type = "bandpass";
-  f2.frequency.setValueAtTime(2000, now);
-  f2.frequency.exponentialRampToValueAtTime(2600, now + 0.2);
-  f2.frequency.setValueAtTime(2600, now + 2.8);
-  f2.frequency.exponentialRampToValueAtTime(2100, now + 4.0);
-  f2.Q.value = 7;
+  const f2 = ac.createBiquadFilter(); // ~2700 Hz — throat mid
+  f2.type = "bandpass"; f2.frequency.value = 2700; f2.Q.value = 9;
 
-  // F3 — ~4000 Hz  (adult ~2900 Hz) — the piercing "edge" quality
-  const f3 = ac.createBiquadFilter();
-  f3.type = "bandpass";
-  f3.frequency.setValueAtTime(3400, now);
-  f3.frequency.exponentialRampToValueAtTime(4000, now + 0.2);
-  f3.frequency.setValueAtTime(4000, now + 2.8);
-  f3.frequency.exponentialRampToValueAtTime(3500, now + 4.0);
-  f3.Q.value = 5;
+  const f3 = ac.createBiquadFilter(); // ~4200 Hz — nasal edge / shrillness
+  f3.type = "bandpass"; f3.frequency.value = 4200; f3.Q.value = 7;
 
-  // F4 — ~5200 Hz  (adult ~3800 Hz) — ultra-bright sheen / air
-  const f4 = ac.createBiquadFilter();
-  f4.type = "bandpass";
-  f4.frequency.value = 5200;
-  f4.Q.value = 3;
+  const f4 = ac.createBiquadFilter(); // ~5500 Hz — piercing air
+  f4.type = "bandpass"; f4.frequency.value = 5500; f4.Q.value = 4;
 
-  const m1 = ac.createGain(); m1.gain.value = 0.62;
-  const m2 = ac.createGain(); m2.gain.value = 0.52;
-  const m3 = ac.createGain(); m3.gain.value = 0.40;
-  const m4 = ac.createGain(); m4.gain.value = 0.22;
+  const m1 = ac.createGain(); m1.gain.value = 0.70;
+  const m2 = ac.createGain(); m2.gain.value = 0.60;
+  const m3 = ac.createGain(); m3.gain.value = 0.48;
+  const m4 = ac.createGain(); m4.gain.value = 0.28;
 
-  // Wire sources into formants
   sawMix.connect(f1); sawMix.connect(f2); sawMix.connect(f3); sawMix.connect(f4);
   sineMix.connect(f1); sineMix.connect(f2); sineMix.connect(f3); sineMix.connect(f4);
-  breathGain.connect(f3); breathGain.connect(f4); // breathiness only in upper formants
+  breathGain.connect(f2); breathGain.connect(f3); breathGain.connect(f4);
 
   f1.connect(m1); f2.connect(m2); f3.connect(m3); f4.connect(m4);
 
+  // ── OVERTONE SCREECH: a pitched layer an octave up for extra shrillness ──
+  const overtone = ac.createOscillator();
+  overtone.type = "sawtooth";
+  overtone.frequency.setValueAtTime(760, now);
+  overtone.frequency.exponentialRampToValueAtTime(2700, now + 0.12);
+  overtone.frequency.setValueAtTime(2700, now + 0.12);
+  const overtoneGain = ac.createGain();
+  overtoneGain.gain.value = 0.22;
+  overtone.connect(overtoneGain);
+
   // ── MASTER ENVELOPE ───────────────────────────────────────────────────────
-  // Instant sharp attack → loud for 3 seconds → gradual natural fade
+  // Instant attack, FULL VOLUME for 3 seconds, short 0.4s fade — not a balloon glide
   const masterScream = ac.createGain();
   masterScream.gain.setValueAtTime(0, now);
-  masterScream.gain.linearRampToValueAtTime(1.0, now + 0.018); // razor-sharp attack
-  masterScream.gain.setValueAtTime(1.0, now + 2.8);            // sustain ~3s
-  masterScream.gain.linearRampToValueAtTime(0.55, now + 3.3);  // breath running out
-  masterScream.gain.exponentialRampToValueAtTime(0.0001, now + 4.3); // gone
+  masterScream.gain.linearRampToValueAtTime(1.35, now + 0.015); // very loud, instant
+  masterScream.gain.setValueAtTime(1.35, now + 2.95);
+  masterScream.gain.exponentialRampToValueAtTime(0.0001, now + 3.45); // sharp cutoff
 
-  m1.connect(masterScream);
-  m2.connect(masterScream);
-  m3.connect(masterScream);
-  m4.connect(masterScream);
+  tremoloGain.connect(masterScream.gain); // amplitude tremolo
+
+  m1.connect(masterScream); m2.connect(masterScream);
+  m3.connect(masterScream); m4.connect(masterScream);
   breathGain.connect(masterScream);
+  overtoneGain.connect(masterScream);
 
-  // Output: mostly dry (human), small reverb send
-  masterScream.connect(ac.destination);
+  masterScream.connect(comp);
   masterScream.connect(tightReverb);
 
-  // ── START ALL OSCILLATORS ─────────────────────────────────────────────────
-  const stopAt = now + 4.6;
-  sawOsc.start(now);   sawOsc.stop(stopAt);
-  sineOsc.start(now);  sineOsc.stop(stopAt);
-  vibLfo1.start(now);  vibLfo1.stop(stopAt);
-  vibLfo2.start(now);  vibLfo2.stop(stopAt);
+  // ── START ────────────────────────────────────────────────────────────────
+  const endAt = now + 3.6;
+  sawOsc.start(now);     sawOsc.stop(endAt);
+  sineOsc.start(now);    sineOsc.stop(endAt);
+  overtone.start(now);   overtone.stop(endAt);
+  vibLfo1.start(now);    vibLfo1.stop(endAt);
+  vibLfo2.start(now);    vibLfo2.stop(endAt);
+  tremoloLfo.start(now); tremoloLfo.stop(endAt);
   breathSrc.start(now);
 
-  // ── PRE-SCREAM: sharp inhale gasp (50ms of high-passed noise) ────────────
-  const gaspLen = Math.floor(ac.sampleRate * 0.055);
+  // ── PRE-SCREAM GASP ──────────────────────────────────────────────────────
+  const gaspLen = Math.floor(ac.sampleRate * 0.05);
   const gaspBuf = ac.createBuffer(1, gaspLen, ac.sampleRate);
   const gd = gaspBuf.getChannelData(0);
   for (let i = 0; i < gaspLen; i++) gd[i] = Math.random() * 2 - 1;
   const gasp = ac.createBufferSource();
   gasp.buffer = gaspBuf;
   const gaspHP = ac.createBiquadFilter();
-  gaspHP.type = "highpass";
-  gaspHP.frequency.value = 2000;
+  gaspHP.type = "highpass"; gaspHP.frequency.value = 2500;
   const gaspGain = ac.createGain();
-  gaspGain.gain.setValueAtTime(0.5, now);
-  gaspGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+  gaspGain.gain.setValueAtTime(0.65, now);
+  gaspGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
   gasp.connect(gaspHP); gaspHP.connect(gaspGain); gaspGain.connect(ac.destination);
   gasp.start(now);
 
-  // ── IMPACT THUD (lighter than before — just a quick punch, not monster bass) ─
+  // ── IMPACT THUD ──────────────────────────────────────────────────────────
   const thud = ac.createOscillator();
   thud.type = "sine";
-  thud.frequency.setValueAtTime(120, now);
-  thud.frequency.exponentialRampToValueAtTime(45, now + 0.25);
+  thud.frequency.setValueAtTime(130, now);
+  thud.frequency.exponentialRampToValueAtTime(40, now + 0.22);
   const thudGain = ac.createGain();
   thudGain.gain.setValueAtTime(0, now);
-  thudGain.gain.linearRampToValueAtTime(0.5, now + 0.006);
-  thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+  thudGain.gain.linearRampToValueAtTime(0.65, now + 0.005);
+  thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
   thud.connect(thudGain); thudGain.connect(ac.destination);
-  thud.start(now); thud.stop(now + 0.35);
+  thud.start(now); thud.stop(now + 0.32);
 }
 
 // ─── Mini celebration chime ───────────────────────────────────────────────────
