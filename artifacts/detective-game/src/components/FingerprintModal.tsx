@@ -78,26 +78,30 @@ export function FingerprintModal({ killerIds, onClose }: FingerprintModalProps) 
     return Math.max(...xs) - Math.min(...xs) > 50 && Math.max(...ys) - Math.min(...ys) > 50;
   }, []);
 
-  const getSVGCoords = (e: React.PointerEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+  const getSVGCoords = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
     return {
-      x: (e.clientX - rect.left) * (300 / rect.width),
-      y: (e.clientY - rect.top) * (300 / rect.height),
+      x: (clientX - rect.left) * (300 / rect.width),
+      y: (clientY - rect.top) * (300 / rect.height),
     };
-  };
+  }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     if (phase !== "tracing" || traceSuccess) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setTracePoints([getSVGCoords(e)]);
+    svgRef.current?.setPointerCapture(e.pointerId);
+    const pt = getSVGCoords(e.clientX, e.clientY);
+    setTracePoints([pt]);
     setIsTracing(true);
     setTraceFailed(false);
-  }, [phase, traceSuccess]);
+  }, [phase, traceSuccess, getSVGCoords]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     if (!isTracing || phase !== "tracing") return;
-    setTracePoints((prev) => [...prev, getSVGCoords(e)]);
-  }, [isTracing, phase]);
+    const pt = getSVGCoords(e.clientX, e.clientY);
+    setTracePoints((prev) => [...prev, pt]);
+  }, [isTracing, phase, getSVGCoords]);
 
   const handlePointerUp = useCallback(() => {
     if (!isTracing) return;
