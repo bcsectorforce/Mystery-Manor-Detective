@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Murder Mystery Detective"
+version = "1.0.0"
+id = "artifacts/detective-game"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22783
+
+[services.development]
+run = "pnpm --filter @workspace/detective-game run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/detective-game", "run", "build" ]
+publicDir = "artifacts/detective-game/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22783"
+BASE_PATH = "/"
