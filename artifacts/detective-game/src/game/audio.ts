@@ -263,6 +263,130 @@ function createHeartbeat(
   return () => { stopped = true; clearInterval(handle); };
 }
 
+// ─── Intro Hum: Deep rising dread ────────────────────────────────────────────
+
+let introHumNodes: Array<() => void> = [];
+let introHumRunning = false;
+
+export function startIntroHum() {
+  if (introHumRunning) return;
+  introHumRunning = true;
+
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+
+  const masterGain = ac.createGain();
+  masterGain.gain.setValueAtTime(0, ac.currentTime);
+  masterGain.gain.linearRampToValueAtTime(0.38, ac.currentTime + 2.5);
+  masterGain.connect(ac.destination);
+
+  const reverb = makeReverb(ac, 7, 1.4);
+  const reverbSend = ac.createGain();
+  reverbSend.gain.value = 0.55;
+  reverb.connect(reverbSend);
+  reverbSend.connect(masterGain);
+
+  // Sweep: 35 Hz → 520 Hz over 32 seconds (deeply terrifying rise)
+  const SWEEP_SECS = 32;
+
+  interface SweepConfig {
+    startHz: number;
+    endHz: number;
+    detune: number;
+    gain: number;
+    wave: OscillatorType;
+    toReverb: boolean;
+  }
+
+  const layers: SweepConfig[] = [
+    { startHz: 35,  endHz: 520, detune:   0, gain: 0.28, wave: "sine",     toReverb: false },
+    { startHz: 37,  endHz: 535, detune:  14, gain: 0.20, wave: "sine",     toReverb: false },
+    { startHz: 52,  endHz: 780, detune:  -9, gain: 0.14, wave: "sine",     toReverb: true  },
+    { startHz: 41,  endHz: 490, detune: -18, gain: 0.10, wave: "sawtooth", toReverb: true  },
+  ];
+
+  for (const layer of layers) {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = layer.wave;
+    osc.detune.value = layer.detune;
+
+    // Tremolo — hum character
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.type = "sine";
+    lfo.frequency.value = 5.2;
+    lfoGain.gain.value = layer.gain * 0.45;
+    lfo.connect(lfoGain);
+    lfoGain.connect(g.gain);
+    g.gain.value = layer.gain;
+
+    osc.connect(g);
+    g.connect(masterGain);
+    if (layer.toReverb) g.connect(reverb);
+
+    // Schedule the rising sweep — looping every SWEEP_SECS
+    const schedule = () => {
+      if (!introHumRunning) return;
+      const now = ac.currentTime;
+      osc.frequency.cancelScheduledValues(now);
+      osc.frequency.setValueAtTime(layer.startHz, now);
+      osc.frequency.exponentialRampToValueAtTime(layer.endHz, now + SWEEP_SECS);
+    };
+
+    schedule();
+    const sweepInterval = setInterval(schedule, SWEEP_SECS * 1000);
+
+    osc.start();
+    lfo.start();
+
+    introHumNodes.push(() => {
+      clearInterval(sweepInterval);
+      try { osc.stop(); osc.disconnect(); } catch {}
+      try { lfo.stop(); lfo.disconnect(); lfoGain.disconnect(); } catch {}
+    });
+  }
+
+  // Master breathing pulse (very slow, 0.15 Hz)
+  const breathLfo = ac.createOscillator();
+  const breathLfoGain = ac.createGain();
+  breathLfo.type = "sine";
+  breathLfo.frequency.value = 0.15;
+  breathLfoGain.gain.value = 0.07;
+  breathLfo.connect(breathLfoGain);
+  breathLfoGain.connect(masterGain.gain);
+  breathLfo.start();
+
+  // Dissonant sub-bass rumble (just below hearing, felt more than heard)
+  const subOsc = ac.createOscillator();
+  const subGain = ac.createGain();
+  subOsc.type = "sine";
+  subOsc.frequency.setValueAtTime(28, ac.currentTime);
+  subOsc.frequency.exponentialRampToValueAtTime(80, ac.currentTime + SWEEP_SECS);
+  subGain.gain.value = 0.35;
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  introHumNodes.push(() => {
+    const t = ac.currentTime;
+    masterGain.gain.setValueAtTime(masterGain.gain.value, t);
+    masterGain.gain.linearRampToValueAtTime(0, t + 1.8);
+    setTimeout(() => {
+      try { masterGain.disconnect(); reverbSend.disconnect(); } catch {}
+    }, 2500);
+    try { breathLfo.stop(); breathLfo.disconnect(); breathLfoGain.disconnect(); } catch {}
+    try { subOsc.stop(); subOsc.disconnect(); subGain.disconnect(); } catch {}
+  });
+}
+
+export function stopIntroHum() {
+  if (!introHumRunning) return;
+  introHumRunning = false;
+  introHumNodes.forEach((fn) => { try { fn(); } catch {} });
+  introHumNodes = [];
+}
+
 // ─── PUBLIC: Start Ambient (same terror for both modes) ──────────────────────
 
 export function startAmbient(_hardMode: boolean) {

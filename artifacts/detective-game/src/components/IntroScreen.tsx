@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { startIntroHum, stopIntroHum, resumeContext } from "../game/audio";
 
 interface IntroScreenProps {
   onStart: (hardMode: boolean) => void;
@@ -25,6 +26,24 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
   const [showInstructions, setShowInstructions] = useState(false);
   const [started, setStarted] = useState(false);
   const [hardMode, setHardMode] = useState(false);
+  const humStarted = useRef(false);
+
+  useEffect(() => {
+    // Try starting immediately (works if AudioContext is already unlocked)
+    startIntroHum();
+    humStarted.current = true;
+    return () => {
+      stopIntroHum();
+    };
+  }, []);
+
+  const ensureHum = () => {
+    resumeContext();
+    if (!humStarted.current) {
+      startIntroHum();
+      humStarted.current = true;
+    }
+  };
 
   useEffect(() => {
     if (lineIndex < STORY_LINES.length - 1) {
@@ -37,6 +56,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
   }, [lineIndex]);
 
   const handleStart = () => {
+    stopIntroHum();
     setStarted(true);
     onStart(hardMode);
   };
@@ -45,6 +65,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
     <div
       className="fixed inset-0 bg-black flex flex-col items-center justify-center overflow-y-auto"
       style={{ fontFamily: "'Special Elite', 'Courier New', serif" }}
+      onClick={ensureHum}
     >
       {/* Ambient particles */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
