@@ -16,6 +16,7 @@ import { AccusationScreen } from "../components/AccusationScreen";
 import { IntroScreen } from "../components/IntroScreen";
 import { VictoryScreen } from "../components/VictoryScreen";
 import { DefeatScreen } from "../components/DefeatScreen";
+import { JumpScare } from "../components/JumpScare";
 import { Notepad } from "../components/Notepad";
 
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
@@ -237,10 +238,15 @@ export default function GameEngine() {
 
     setGameState((prev) => ({
       ...prev,
-      phase: correct ? "victory" : "defeat",
+      // Wrong → jumpscare first; correct → victory immediately
+      phase: correct ? "victory" : "jumpscare",
       accusationResult: correct ? "correct" : "wrong",
       confettiPieces,
     }));
+  }, []);
+
+  const handleJumpScareDone = useCallback(() => {
+    setGameState((prev) => ({ ...prev, phase: "defeat" }));
   }, []);
 
   const updateNotes = useCallback((notes: string) => {
@@ -296,6 +302,10 @@ export default function GameEngine() {
 
   if (gameState.phase === "intro") {
     return <IntroScreen onStart={startGame} />;
+  }
+
+  if (gameState.phase === "jumpscare") {
+    return <JumpScare onDone={handleJumpScareDone} />;
   }
 
   if (gameState.phase === "victory") {

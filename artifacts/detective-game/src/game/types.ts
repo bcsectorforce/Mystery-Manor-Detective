@@ -105,7 +105,7 @@ export interface KillEvent {
 }
 
 export interface GameState {
-  phase: "intro" | "playing" | "accusation" | "victory" | "defeat";
+  phase: "intro" | "playing" | "accusation" | "victory" | "defeat" | "jumpscare";
   currentRoom: RoomId;
   persons: Person[];
   rooms: Room[];
