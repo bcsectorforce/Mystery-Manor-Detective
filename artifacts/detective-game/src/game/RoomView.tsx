@@ -1,5 +1,5 @@
 import React from "react";
-import type { Room, Person, RoomId } from "./types";
+import type { Room, Person, RoomId, SecretNote } from "./types";
 import { PersonDot } from "./PersonDot";
 
 interface RoomViewProps {
@@ -10,6 +10,8 @@ interface RoomViewProps {
   onPersonClick: (id: string) => void;
   onObjectClick: (clue: string) => void;
   showIds: boolean;
+  secretNote?: SecretNote | null;
+  onNoteClick?: () => void;
 }
 
 export function RoomView({
@@ -20,6 +22,8 @@ export function RoomView({
   onPersonClick,
   onObjectClick,
   showIds,
+  secretNote,
+  onNoteClick,
 }: RoomViewProps) {
   const roomPersons = persons.filter((p) => p.room === room.id);
   const bgPatterns: Record<RoomId, string> = {
@@ -160,6 +164,50 @@ export function RoomView({
           showId={showIds}
         />
       ))}
+
+      {/* Secret note — hidden in plain sight */}
+      {secretNote && secretNote.roomId === room.id && isCurrentRoom && (
+        <g
+          onClick={onNoteClick}
+          style={{ cursor: "pointer" }}
+          transform={`translate(${secretNote.x}, ${secretNote.y})`}
+        >
+          {/* Paper shadow */}
+          <rect x={2} y={3} width={20} height={26} rx={2} fill="rgba(0,0,0,0.3)" />
+          {/* Paper body — aged parchment */}
+          <rect
+            x={0}
+            y={0}
+            width={20}
+            height={26}
+            rx={2}
+            fill="#e8d5b0"
+            stroke="#c9b07a"
+            strokeWidth={0.8}
+            style={{
+              filter: secretNote.seen ? "none" : "drop-shadow(0 0 4px rgba(245,197,24,0.7))",
+            }}
+          />
+          {/* Horizontal lines on note */}
+          <line x1={3} y1={8} x2={17} y2={8} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
+          <line x1={3} y1={12} x2={17} y2={12} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
+          <line x1={3} y1={16} x2={17} y2={16} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
+          <line x1={3} y1={20} x2={13} y2={20} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
+          {/* Wax seal dot */}
+          <circle cx={10} cy={22} r={3} fill="#8b0000" opacity={0.8} />
+          {/* Subtle glow pulse if not seen */}
+          {!secretNote.seen && (
+            <>
+              <rect x={-3} y={-3} width={26} height={32} rx={4} fill="none" stroke="rgba(245,197,24,0.4)" strokeWidth={1}>
+                <animate attributeName="stroke-opacity" values="0.4;0.9;0.4" dur="2s" repeatCount="indefinite" />
+              </rect>
+              <text x={10} y={-6} textAnchor="middle" fontSize={6} fill="rgba(245,197,24,0.8)" style={{ pointerEvents: "none" }}>
+                [examine]
+              </text>
+            </>
+          )}
+        </g>
+      )}
 
       {/* Darkness overlay if not current room */}
       {!isCurrentRoom && (

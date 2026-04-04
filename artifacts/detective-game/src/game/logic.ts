@@ -37,9 +37,15 @@ function distance(x1: number, y1: number, x2: number, y2: number) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 }
 
-export function initializePersons(): Person[] {
+export function initializePersons(numKillers: number = 1): Person[] {
   const shuffledColors = [...PERSON_COLORS].sort(() => Math.random() - 0.5);
-  const killerIndex = randomInt(0, 14);
+
+  // Pick unique killer indices
+  const killerIndices = new Set<number>();
+  while (killerIndices.size < Math.min(numKillers, 15)) {
+    killerIndices.add(randomInt(0, 14));
+  }
+
   const rooms: RoomId[] = ["library", "kitchen", "ballroom", "garden"];
 
   return PERSON_NAMES.map((name, i) => {
@@ -66,7 +72,7 @@ export function initializePersons(): Person[] {
       state: "idle",
       activity,
       activityLabel: ACTIVITY_LABELS[activity],
-      isKiller: i === killerIndex,
+      isKiller: killerIndices.has(i),
       killCooldown: 0,
       suspicionLevel: 0,
       alibi: generateAlibi(name),
@@ -388,6 +394,31 @@ export function generateRedHerringClue(
     category: "behavior",
     suspectId: innocent.id,
     severity: Math.random() > 0.5 ? "medium" : "low",
+  };
+}
+
+export function generateFramingClue(
+  innocent: Person,
+  timeElapsed: number
+): ClueEntry {
+  const messages = [
+    `${innocent.name}'s fingerprints were found on the murder weapon`,
+    `A witness saw ${innocent.name} fleeing the scene moments ago`,
+    `${innocent.name}'s belongings were found near the latest victim`,
+    `Someone overheard ${innocent.name} say "they deserved it"`,
+    `${innocent.name} cannot account for their whereabouts during the killing`,
+    `A torn piece of cloth near the body matches ${innocent.name}'s clothing`,
+    `${innocent.name} was seen purchasing a suspicious item earlier today`,
+    `${innocent.name}'s handwriting was found on a threatening note`,
+  ];
+  return {
+    id: generateId(),
+    text: messages[randomInt(0, messages.length - 1)],
+    room: innocent.room,
+    timestamp: timeElapsed,
+    category: "physical",
+    suspectId: innocent.id,
+    severity: "high",
   };
 }
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import type { GameState, Person, ClueEntry, KillEvent, RoomId, ConfettiPiece } from "./types";
-import { ROOMS } from "./types";
+import type { GameState, Person, ClueEntry, KillEvent, RoomId, ConfettiPiece, SecretNote } from "./types";
+import { ROOMS, isWarmColor } from "./types";
 import {
   initializePersons,
   updatePersons,
   generateBehaviorClue,
   generateRedHerringClue,
+  generateFramingClue,
   generateConfetti,
   formatTime,
 } from "./logic";
@@ -18,6 +19,7 @@ import { VictoryScreen } from "../components/VictoryScreen";
 import { DefeatScreen } from "../components/DefeatScreen";
 import { JumpScare } from "../components/JumpScare";
 import { Notepad } from "../components/Notepad";
+import { SecretNoteModal } from "../components/SecretNoteModal";
 
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
@@ -44,6 +46,10 @@ export default function GameEngine() {
     confettiPieces: [],
     screenShake: false,
     introStep: 0,
+    hardMode: false,
+    framingActive: false,
+    secretNote: null,
+    showSecretNote: false,
   });
 
   const frameRef = useRef<number>(0);

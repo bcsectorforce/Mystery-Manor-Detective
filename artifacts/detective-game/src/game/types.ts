@@ -104,6 +104,16 @@ export interface KillEvent {
   method: string;
 }
 
+export interface SecretNote {
+  roomId: RoomId;
+  x: number;
+  y: number;
+  warm1: boolean;
+  warm2: boolean;
+  twoKillers: boolean;
+  seen: boolean;
+}
+
 export interface GameState {
   phase: "intro" | "playing" | "accusation" | "victory" | "defeat" | "jumpscare";
   currentRoom: RoomId;
@@ -127,6 +137,10 @@ export interface GameState {
   showPersonDetails: string | null;
   confettiPieces: ConfettiPiece[];
   screenShake: boolean;
+  hardMode: boolean;
+  framingActive: boolean;
+  secretNote: SecretNote | null;
+  showSecretNote: boolean;
   introStep: number;
 }
 
@@ -283,6 +297,11 @@ export const KILL_METHODS = [
 
 export function generateId(): string {
   return Math.floor(10000 + Math.random() * 90000).toString();
+}
+
+export function isWarmColor(color: string): boolean {
+  const warm = ["#e74c3c", "#f39c12", "#e67e22", "#e91e63", "#ff5722", "#ff9800"];
+  return warm.includes(color.toLowerCase());
 }
 
 export const ACTIVITY_LABELS: Record<PersonActivity, string> = {

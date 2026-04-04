@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 interface IntroScreenProps {
-  onStart: () => void;
+  onStart: (hardMode: boolean) => void;
 }
 
 const STORY_LINES = [
@@ -24,6 +24,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
   const [lineIndex, setLineIndex] = useState(0);
   const [showInstructions, setShowInstructions] = useState(false);
   const [started, setStarted] = useState(false);
+  const [hardMode, setHardMode] = useState(false);
 
   useEffect(() => {
     if (lineIndex < STORY_LINES.length - 1) {
@@ -37,7 +38,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
 
   const handleStart = () => {
     setStarted(true);
-    onStart();
+    onStart(hardMode);
   };
 
   return (
@@ -118,6 +119,48 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
                 <span className="text-muted-foreground">Hard by design. Gather all evidence before accusing. The killer is subtle.</span>
               </div>
             </div>
+
+            {/* Hard mode toggle */}
+            <div className="mt-4 pt-3 border-t border-border">
+              <button
+                onClick={() => setHardMode((v) => !v)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-all duration-300 ${
+                  hardMode
+                    ? "bg-red-950/60 border-red-600 text-red-300"
+                    : "bg-card/40 border-border text-muted-foreground hover:border-red-800 hover:text-foreground"
+                }`}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <span className="text-lg">{hardMode ? "☠️" : "🎭"}</span>
+                  <div>
+                    <p className="text-sm font-bold tracking-wider">
+                      {hardMode ? "HARD MODE — ACTIVE" : "HARD MODE"}
+                    </p>
+                    <p className="text-xs opacity-70 mt-0.5">
+                      {hardMode
+                        ? "Two killers. A hidden clue awaits in the manor."
+                        : "Two killers cooperate. Harder to catch. Enable for a real challenge."}
+                    </p>
+                  </div>
+                </div>
+                <div
+                  className={`w-10 h-5 rounded-full relative transition-colors duration-300 flex-shrink-0 ${
+                    hardMode ? "bg-red-600" : "bg-muted"
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300 ${
+                      hardMode ? "left-5" : "left-0.5"
+                    }`}
+                  />
+                </div>
+              </button>
+              {hardMode && (
+                <p className="text-xs text-red-400/70 text-center mt-2 italic animate-fade-in-up">
+                  A hidden note somewhere in the manor reveals a clue about the killers.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -126,10 +169,18 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
           <button
             onClick={handleStart}
             disabled={started}
-            className="relative w-full px-8 py-3 bg-primary text-primary-foreground rounded-xl font-bold text-base tracking-wider transition-all duration-300 hover:scale-105 animate-fade-in-up"
-            style={{ boxShadow: "0 0 24px rgba(245,197,24,0.4)" }}
+            className={`relative w-full px-8 py-3 rounded-xl font-bold text-base tracking-wider transition-all duration-300 hover:scale-105 animate-fade-in-up ${
+              hardMode
+                ? "bg-red-700 hover:bg-red-600 text-white"
+                : "bg-primary text-primary-foreground"
+            }`}
+            style={{
+              boxShadow: hardMode
+                ? "0 0 24px rgba(200,0,0,0.5)"
+                : "0 0 24px rgba(245,197,24,0.4)",
+            }}
           >
-            {started ? "ENTERING MANOR..." : "BEGIN INVESTIGATION"}
+            {started ? "ENTERING MANOR..." : hardMode ? "BEGIN — HARD MODE" : "BEGIN INVESTIGATION"}
           </button>
         )}
 
