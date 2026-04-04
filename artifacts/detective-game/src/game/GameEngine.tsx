@@ -578,7 +578,6 @@ export default function GameEngine() {
               </div>
               <div className="flex gap-2 text-xs opacity-70">
                 <span className="text-green-400">👤 {ac}</span>
-                {dc > 0 && <span className="text-red-400/80">✝ {dc}</span>}
                 {gameState.investigatedRooms.has(room.id) && <span className="text-primary">✓</span>}
               </div>
             </button>

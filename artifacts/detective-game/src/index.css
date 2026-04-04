@@ -292,8 +292,8 @@
 
 /* Scan line animation for fingerprint zoom */
 @keyframes scan-line {
-  0%   { background-position: 0 -60px; }
-  100% { background-position: 0 220px; }
+  0%   { top: -4px; }
+  100% { top: 100%; }
 }
 
 /* Tooltip */
