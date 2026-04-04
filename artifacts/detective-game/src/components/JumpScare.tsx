@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { playJumpScareSound } from "../game/audio";
 
 interface JumpScareProps {
   onDone: () => void;
@@ -52,6 +53,9 @@ export function JumpScare({ onDone }: JumpScareProps) {
   onDoneRef.current = onDone;
 
   useEffect(() => {
+    // Fire the terrifying sound immediately
+    playJumpScareSound();
+
     let current = 0;
 
     const advance = () => {

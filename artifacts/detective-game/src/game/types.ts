@@ -142,6 +142,8 @@ export interface GameState {
   secretNote: SecretNote | null;
   showSecretNote: boolean;
   introStep: number;
+  killersCaught: string[];
+  miniCelebration: { killerName: string; killerId: string } | null;
 }
 
 export interface ConfettiPiece {
