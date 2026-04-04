@@ -8,11 +8,12 @@ interface PersonDotProps {
   onClick: (id: string) => void;
   showId: boolean;
   onDeadClick?: (id: string) => void;
+  scanAvailable?: boolean;
 }
 
-export function PersonDot({ person, isCurrentRoom, isSelected, onClick, showId, onDeadClick }: PersonDotProps) {
+export function PersonDot({ person, isCurrentRoom, isSelected, onClick, showId, onDeadClick, scanAvailable }: PersonDotProps) {
   if (person.state === "dead") {
-    return <DeadPerson person={person} isCurrentRoom={isCurrentRoom} showId={showId} onDeadClick={onDeadClick} />;
+    return <DeadPerson person={person} isCurrentRoom={isCurrentRoom} showId={showId} onDeadClick={onDeadClick} scanAvailable={scanAvailable} />;
   }
 
   const size = person.size;
@@ -163,15 +164,17 @@ function DeadPerson({
   isCurrentRoom,
   showId,
   onDeadClick,
+  scanAvailable,
 }: {
   person: Person;
   isCurrentRoom: boolean;
   showId: boolean;
   onDeadClick?: (id: string) => void;
+  scanAvailable?: boolean;
 }) {
   const size = person.size;
   const half = size / 2;
-  const clickable = !!onDeadClick;
+  const clickable = !!onDeadClick && scanAvailable !== false;
 
   return (
     <g
@@ -189,9 +192,14 @@ function DeadPerson({
       <line x1={1} y1={-4} x2={4} y2={-1} stroke="white" strokeWidth={1} />
       <line x1={4} y1={-4} x2={1} y2={-1} stroke="white" strokeWidth={1} />
       {/* Clickable hint in hard mode */}
-      {clickable && (
+      {!!onDeadClick && clickable && (
         <text x={0} y={-half - 5} textAnchor="middle" fontSize={6} fill="rgba(245,197,24,0.75)" fontFamily="monospace" style={{ pointerEvents: "none" }}>
           [examine]
+        </text>
+      )}
+      {!!onDeadClick && !clickable && (
+        <text x={0} y={-half - 5} textAnchor="middle" fontSize={6} fill="rgba(120,120,120,0.5)" fontFamily="monospace" style={{ pointerEvents: "none" }}>
+          [no scans left]
         </text>
       )}
       {/* Name */}

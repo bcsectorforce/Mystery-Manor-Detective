@@ -7,18 +7,29 @@ interface SecretNoteModalProps {
 }
 
 function buildNoteText(note: SecretNote): string {
-  if (!note.twoKillers) {
+  if (note.killerCount === 1) {
     return note.warm1
       ? "The one you seek dresses in shades of fire — red, orange, amber. Warm hues hide a cold heart."
       : "The one you seek dresses in shades of frost — blue, green, grey. Cold hues mask a colder soul.";
   }
-  if (note.warm1 && note.warm2) {
-    return "Two wolves stalk this manor. Both dress in warm hues — reds, oranges, the color of blood. Do not be fooled by their warmth.";
+
+  if (note.killerCount === 2) {
+    if (note.warm1 && note.warm2)
+      return "Two wolves stalk this manor. Both dress in warm hues — reds, oranges, the color of blood. Do not be fooled by their warmth.";
+    if (!note.warm1 && !note.warm2)
+      return "Two wolves stalk this manor. Both dress in cold hues — blues, greens, grey as winter stone. The chill in the air is no accident.";
+    return "Two wolves stalk this manor. One wears the warmth of flame — reds and oranges. The other wears the cold of the deep — blues and greens. Find them both.";
   }
-  if (!note.warm1 && !note.warm2) {
-    return "Two wolves stalk this manor. Both dress in cold hues — blues, greens, grey as winter stone. The chill in the air is no accident.";
-  }
-  return "Two wolves stalk this manor. One wears the warmth of flame — reds and oranges. The other wears the cold of the deep — blues and greens. Find them both.";
+
+  // 3 killers
+  const warmCount = [note.warm1, note.warm2, note.warm3].filter(Boolean).length;
+  if (warmCount === 3)
+    return "Three wolves stalk this manor. All three cloak themselves in warm hues — reds, oranges, the colour of spilled blood. Beware every warm face you see.";
+  if (warmCount === 0)
+    return "Three wolves stalk this manor. All three wear cold colours — blues, greens, grey as a winter grave. The chill you feel is no accident.";
+  if (warmCount === 2)
+    return "Three wolves stalk this manor. Two wear warm hues — reds and oranges. The third hides in cold colours — blues or greens. Do not trust a warm smile.";
+  return "Three wolves stalk this manor. Two wear cold hues — blues, greens and grey. The third dresses in warm colours — reds or oranges. Find all three before the night ends.";
 }
 
 export function SecretNoteModal({ note, onClose }: SecretNoteModalProps) {

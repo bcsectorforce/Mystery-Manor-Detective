@@ -43,7 +43,8 @@ function buildSecretNote(persons: Person[]): SecretNote {
   const killers = persons.filter((p) => p.isKiller);
   const warm1 = killers[0] ? isWarmColor(killers[0].color) : false;
   const warm2 = killers[1] ? isWarmColor(killers[1].color) : false;
-  return { roomId, x, y, warm1, warm2, twoKillers: killers.length > 1, seen: false };
+  const warm3 = killers[2] ? isWarmColor(killers[2].color) : false;
+  return { roomId, x, y, warm1, warm2, warm3, killerCount: killers.length, seen: false };
 }
 
 const EMPTY_STATE: GameState = {
@@ -79,6 +80,7 @@ const EMPTY_STATE: GameState = {
 export default function GameEngine() {
   const [gameState, setGameState] = useState<GameState>({ ...EMPTY_STATE });
   const [fingerprintPersonId, setFingerprintPersonId] = useState<string | null>(null);
+  const [fingerprintUsesLeft, setFingerprintUsesLeft] = useState(2);
 
   const frameRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
@@ -87,7 +89,8 @@ export default function GameEngine() {
 
   // Start game
   const startGame = useCallback((hardMode: boolean) => {
-    const numKillers = hardMode ? 2 : 1;
+    const numKillers = hardMode ? 3 : 1;
+    setFingerprintUsesLeft(2);
     const persons = initializePersons(numKillers);
     const suspicionMeterByPerson: Record<string, number> = {};
     persons.forEach((p) => { suspicionMeterByPerson[p.id] = 0; });
@@ -117,7 +120,7 @@ export default function GameEngine() {
         {
           id: generateId(),
           text: hardMode
-            ? "Two killers lurk among the guests. The host whispers: 'Not one, but two shadows hide in this manor…'"
+            ? "Three killers lurk among the guests. The host whispers: 'Not one, not two — three shadows hide in this manor…'"
             : "The host whispers: 'One of my guests is not who they seem. Find them before it's too late.'",
           room: "library",
           timestamp: 0,
@@ -330,7 +333,7 @@ export default function GameEngine() {
           accusationInput: "",
           clues: [...prev.clues, {
             id: generateId(),
-            text: `🎯 ${matchedKiller.name} (ID: #${matchedKiller.id}) has been caught! One killer remains.`,
+            text: `🎯 ${matchedKiller.name} (ID: #${matchedKiller.id}) has been caught! ${allKillers.length - newCaught.length} killer${allKillers.length - newCaught.length !== 1 ? "s" : ""} still at large.`,
             room: prev.currentRoom,
             timestamp: prev.timeElapsed,
             category: "murder",
@@ -390,7 +393,11 @@ export default function GameEngine() {
 
   const handleDeadBodyClick = useCallback((personId: string) => {
     if (!stateRef.current.hardMode) return;
-    setFingerprintPersonId(personId);
+    setFingerprintUsesLeft((prev) => {
+      if (prev <= 0) return prev;
+      setFingerprintPersonId(personId);
+      return prev - 1;
+    });
   }, []);
 
   const closeFingerprintModal = useCallback(() => {
@@ -401,6 +408,7 @@ export default function GameEngine() {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     stopAmbient();
     setGameState({ ...EMPTY_STATE });
+    setFingerprintUsesLeft(2);
   }, []);
 
   if (gameState.phase === "intro") {
@@ -463,6 +471,7 @@ export default function GameEngine() {
     deadCount: gameState.persons.filter((p) => p.room === room.id && p.state === "dead").length,
   }));
   const caughtCount = gameState.killersCaught.length;
+  const totalKillers = gameState.persons.filter((p) => p.isKiller).length;
 
   return (
     <div
@@ -517,7 +526,12 @@ export default function GameEngine() {
           <Stat icon="🏃" label="Rooms visited" value={gameState.investigatedRooms.size.toString()} />
           {gameState.hardMode && (
             <span className="text-red-400 text-xs font-bold tracking-wider border border-red-800 px-2 py-0.5 rounded">
-              ☠ HARD {caughtCount > 0 ? `(${caughtCount}/2 caught)` : ""}
+              ☠ HARD {caughtCount > 0 ? `(${caughtCount}/${totalKillers} caught)` : ""}
+            </span>
+          )}
+          {gameState.hardMode && (
+            <span className={`text-xs font-bold tracking-wider border px-2 py-0.5 rounded ${fingerprintUsesLeft > 0 ? "text-yellow-400 border-yellow-800" : "text-gray-600 border-gray-800"}`}>
+              🧬 Scans: {fingerprintUsesLeft}
             </span>
           )}
         </div>
@@ -638,6 +652,7 @@ export default function GameEngine() {
                 secretNote={gameState.secretNote}
                 onNoteClick={handleNoteClick}
                 onDeadBodyClick={gameState.hardMode ? handleDeadBodyClick : undefined}
+                scanAvailable={fingerprintUsesLeft > 0}
               />
               <div
                 className="absolute top-2 left-2 text-xs font-mono px-2 py-0.5 rounded"

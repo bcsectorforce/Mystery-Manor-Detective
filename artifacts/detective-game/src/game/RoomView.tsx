@@ -13,6 +13,7 @@ interface RoomViewProps {
   secretNote?: SecretNote | null;
   onNoteClick?: () => void;
   onDeadBodyClick?: (id: string) => void;
+  scanAvailable?: boolean;
 }
 
 export function RoomView({
@@ -26,6 +27,7 @@ export function RoomView({
   secretNote,
   onNoteClick,
   onDeadBodyClick,
+  scanAvailable,
 }: RoomViewProps) {
   const roomPersons = persons.filter((p) => p.room === room.id);
   const bgPatterns: Record<RoomId, string> = {
@@ -165,6 +167,7 @@ export function RoomView({
           onClick={onPersonClick}
           showId={showIds}
           onDeadClick={onDeadBodyClick}
+          scanAvailable={scanAvailable}
         />
       ))}
 

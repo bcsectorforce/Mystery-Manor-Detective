@@ -110,7 +110,8 @@ export interface SecretNote {
   y: number;
   warm1: boolean;
   warm2: boolean;
-  twoKillers: boolean;
+  warm3: boolean;
+  killerCount: number;
   seen: boolean;
 }
 
