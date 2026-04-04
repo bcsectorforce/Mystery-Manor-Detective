@@ -654,6 +654,169 @@ export function playJumpScareSound() {
   thud.start(now); thud.stop(now + 0.32);
 }
 
+// ─── Kill Sound — terrifying high-pitch shriek blast ─────────────────────────
+
+export function playKillSound() {
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+  const now = ac.currentTime;
+
+  // Sharp impact thud
+  const thud = ac.createOscillator();
+  thud.type = "sine";
+  thud.frequency.setValueAtTime(120, now);
+  thud.frequency.exponentialRampToValueAtTime(30, now + 0.25);
+  const thudG = ac.createGain();
+  thudG.gain.setValueAtTime(0.9, now);
+  thudG.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+  thud.connect(thudG); thudG.connect(ac.destination);
+  thud.start(now); thud.stop(now + 0.3);
+
+  // Multiple terrifying high-pitched shriek oscillators
+  const freqs = [2200, 3600, 4900, 6400, 1900, 8000];
+  freqs.forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = i % 2 === 0 ? "sawtooth" : "square";
+    osc.frequency.setValueAtTime(freq + (Math.random() - 0.5) * 300, now + i * 0.015);
+    osc.frequency.linearRampToValueAtTime(freq * 0.6, now + 2);
+    const dist = makeDistortion(ac, 80);
+    g.gain.setValueAtTime(0, now + i * 0.015);
+    g.gain.linearRampToValueAtTime(0.28, now + i * 0.015 + 0.025);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+    osc.connect(dist); dist.connect(g); g.connect(ac.destination);
+    osc.start(now + i * 0.015);
+    osc.stop(now + 2.1);
+  });
+
+  // Noise burst
+  const noiseLen = Math.floor(ac.sampleRate * 0.1);
+  const nBuf = ac.createBuffer(1, noiseLen, ac.sampleRate);
+  const nd = nBuf.getChannelData(0);
+  for (let i = 0; i < noiseLen; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = ac.createBufferSource();
+  noise.buffer = nBuf;
+  const noiseHP = ac.createBiquadFilter();
+  noiseHP.type = "highpass"; noiseHP.frequency.value = 3000;
+  const noiseG = ac.createGain();
+  noiseG.gain.setValueAtTime(0.7, now);
+  noiseG.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+  noise.connect(noiseHP); noiseHP.connect(noiseG); noiseG.connect(ac.destination);
+  noise.start(now);
+}
+
+// ─── Intro Scare Sound — BANG + scream for hand slam ─────────────────────────
+
+export function playIntroScareSound() {
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+  const now = ac.currentTime;
+
+  // ── MASSIVE BANG (white noise slam) ──────────────────────────────────────
+  const bangLen = Math.floor(ac.sampleRate * 0.2);
+  const bangBuf = ac.createBuffer(2, bangLen, ac.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const ch = bangBuf.getChannelData(c);
+    for (let i = 0; i < bangLen; i++) ch[i] = Math.random() * 2 - 1;
+  }
+  const bang = ac.createBufferSource();
+  bang.buffer = bangBuf;
+  const bangLP = ac.createBiquadFilter();
+  bangLP.type = "lowpass"; bangLP.frequency.value = 1200;
+  const bangG = ac.createGain();
+  bangG.gain.setValueAtTime(1.4, now);
+  bangG.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+  bang.connect(bangLP); bangLP.connect(bangG); bangG.connect(ac.destination);
+  bang.start(now);
+
+  // ── BASS THUD ─────────────────────────────────────────────────────────────
+  const thud = ac.createOscillator();
+  thud.type = "sine";
+  thud.frequency.setValueAtTime(180, now);
+  thud.frequency.exponentialRampToValueAtTime(28, now + 0.35);
+  const thudG = ac.createGain();
+  thudG.gain.setValueAtTime(1.1, now);
+  thudG.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+  thud.connect(thudG); thudG.connect(ac.destination);
+  thud.start(now); thud.stop(now + 0.4);
+
+  // ── BLOODCURDLING SCREAM (formant synthesis) ──────────────────────────────
+  const screamStart = now + 0.05;
+  const screamDur = 3.0;
+
+  const vowelFormants = [
+    { freq: 800,  bw: 120,  gain: 0.9 },
+    { freq: 1800, bw: 180,  gain: 0.6 },
+    { freq: 2700, bw: 250,  gain: 0.4 },
+    { freq: 3800, bw: 300,  gain: 0.25 },
+  ];
+
+  const screamPitch = ac.createOscillator();
+  screamPitch.type = "sawtooth";
+  screamPitch.frequency.setValueAtTime(480, screamStart);
+  screamPitch.frequency.linearRampToValueAtTime(940, screamStart + 0.15);
+  screamPitch.frequency.linearRampToValueAtTime(1100, screamStart + 0.5);
+  screamPitch.frequency.exponentialRampToValueAtTime(380, screamStart + screamDur);
+
+  const screamSourceG = ac.createGain();
+  screamSourceG.gain.value = 1.0;
+  screamPitch.connect(screamSourceG);
+
+  vowelFormants.forEach(({ freq, bw, gain }) => {
+    const filter = ac.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = freq;
+    filter.Q.value = freq / bw;
+    const fGain = ac.createGain();
+    fGain.gain.value = gain;
+    screamSourceG.connect(filter);
+    filter.connect(fGain);
+
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0, screamStart);
+    env.gain.linearRampToValueAtTime(1.0, screamStart + 0.08);
+    env.gain.setValueAtTime(1.0, screamStart + screamDur - 0.4);
+    env.gain.exponentialRampToValueAtTime(0.0001, screamStart + screamDur);
+    fGain.connect(env);
+
+    const reverb = makeReverb(ac, 2, 0.8);
+    env.connect(reverb);
+    reverb.connect(ac.destination);
+    env.connect(ac.destination);
+  });
+
+  // Rough tremolo
+  const tremoloLfo = ac.createOscillator();
+  tremoloLfo.type = "sine";
+  tremoloLfo.frequency.value = 14;
+  const tremoloDepth = ac.createGain();
+  tremoloDepth.gain.value = 0.3;
+  tremoloLfo.connect(tremoloDepth);
+  tremoloDepth.connect(screamSourceG.gain);
+
+  screamPitch.start(screamStart);
+  screamPitch.stop(screamStart + screamDur + 0.1);
+  tremoloLfo.start(screamStart);
+  tremoloLfo.stop(screamStart + screamDur + 0.1);
+
+  // ── SECOND HIGH-PITCH SHRIEK ──────────────────────────────────────────────
+  const shriekFreqs = [3200, 5100, 7200];
+  shriekFreqs.forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(freq, screamStart + i * 0.03);
+    osc.frequency.linearRampToValueAtTime(freq * 1.3, screamStart + 0.1);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.4, screamStart + 1.5);
+    g.gain.setValueAtTime(0, screamStart + i * 0.03);
+    g.gain.linearRampToValueAtTime(0.18, screamStart + i * 0.03 + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, screamStart + 1.6);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(screamStart + i * 0.03);
+    osc.stop(screamStart + 1.7);
+  });
+}
+
 // ─── Mini celebration chime ───────────────────────────────────────────────────
 
 export function playMiniCelebration() {

@@ -10,7 +10,8 @@ import {
   generateConfetti,
   formatTime,
 } from "./logic";
-import { startAmbient, stopAmbient, resumeContext, playMiniCelebration } from "./audio";
+import { startAmbient, stopAmbient, resumeContext, playMiniCelebration, playKillSound } from "./audio";
+import { IntroScare } from "../components/IntroScare";
 import { RoomView } from "./RoomView";
 import { CluePanel } from "../components/CluePanel";
 import { PersonPanel } from "../components/PersonPanel";
@@ -47,8 +48,12 @@ function buildSecretNote(persons: Person[]): SecretNote {
   return { roomId, x, y, warm1, warm2, warm3, killerCount: killers.length, seen: false };
 }
 
+const TIMEOUT_TICKS = 90 * 60;
+const DARKNESS_START_TICKS = 30 * 60;
+
 const EMPTY_STATE: GameState = {
   phase: "intro",
+  killSoundTrigger: 0,
   currentRoom: "library",
   persons: [],
   rooms: ROOMS,
@@ -87,8 +92,19 @@ export default function GameEngine() {
   const stateRef = useRef(gameState);
   stateRef.current = gameState;
 
-  // Start game
-  const startGame = useCallback((hardMode: boolean) => {
+  // Begin intro scare, then start game
+  const handleIntroStart = useCallback((hardMode: boolean) => {
+    setGameState((prev) => ({
+      ...EMPTY_STATE,
+      phase: "introPanic",
+      pendingHardMode: hardMode,
+      notes: prev.notes,
+    }));
+  }, []);
+
+  // Finalize game start after intro scare
+  const finalizeGameStart = useCallback(() => {
+    const hardMode = stateRef.current.pendingHardMode ?? false;
     const numKillers = hardMode ? 3 : 1;
     setFingerprintUsesLeft(2);
     const persons = initializePersons(numKillers);
@@ -96,7 +112,6 @@ export default function GameEngine() {
     persons.forEach((p) => { suspicionMeterByPerson[p.id] = 0; });
     const secretNote = hardMode ? buildSecretNote(persons) : null;
 
-    // Start background music after user interaction (game start click)
     startAmbient(hardMode);
 
     setGameState((prev) => ({
@@ -204,6 +219,17 @@ export default function GameEngine() {
             severity: "critical",
           }));
 
+          // Timeout — killer "kills" you at 90 seconds
+          if (newTimeElapsed >= TIMEOUT_TICKS) {
+            return {
+              ...prev,
+              phase: "jumpscare",
+              jumpscareReason: "timeout",
+              timeElapsed: newTimeElapsed,
+              persons: updatedPersons,
+            };
+          }
+
           return {
             ...prev,
             persons: updatedPersons,
@@ -213,6 +239,7 @@ export default function GameEngine() {
             timeElapsed: newTimeElapsed,
             screenShake: newScreenShake,
             framingActive: newFramingActive,
+            killSoundTrigger: newKills.length > 0 ? prev.killSoundTrigger + newKills.length : prev.killSoundTrigger,
             lastKillMessage: newKills.length > 0
               ? `${prev.persons.find((p) => p.id === newKills[0].victimId)?.name} was killed while you weren't watching!`
               : undefined,
@@ -226,6 +253,13 @@ export default function GameEngine() {
     frameRef.current = requestAnimationFrame(loop);
     return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
   }, [gameState.phase]);
+
+  // Play kill sound when a kill happens
+  useEffect(() => {
+    if (gameState.killSoundTrigger > 0) {
+      playKillSound();
+    }
+  }, [gameState.killSoundTrigger]);
 
   // Clear screen shake
   useEffect(() => {
@@ -354,6 +388,7 @@ export default function GameEngine() {
       setGameState((prev) => ({
         ...prev,
         phase: "jumpscare",
+        jumpscareReason: "wrong",
         accusationResult: "wrong",
       }));
     }
@@ -412,11 +447,15 @@ export default function GameEngine() {
   }, []);
 
   if (gameState.phase === "intro") {
-    return <IntroScreen onStart={startGame} />;
+    return <IntroScreen onStart={handleIntroStart} />;
+  }
+
+  if (gameState.phase === "introPanic") {
+    return <IntroScare onDone={finalizeGameStart} />;
   }
 
   if (gameState.phase === "jumpscare") {
-    return <JumpScare onDone={handleJumpScareDone} />;
+    return <JumpScare onDone={handleJumpScareDone} reason={gameState.jumpscareReason} />;
   }
 
   if (gameState.phase === "victory") {
@@ -459,6 +498,8 @@ export default function GameEngine() {
     );
   }
 
+  const darknessProgress = Math.max(0, Math.min(1, (gameState.timeElapsed - DARKNESS_START_TICKS) / (TIMEOUT_TICKS - DARKNESS_START_TICKS)));
+
   const currentRoom = ROOMS.find((r) => r.id === gameState.currentRoom)!;
   const selectedPerson = gameState.persons.find((p) => p.id === gameState.showPersonDetails);
   const aliveCount = gameState.persons.filter((p) => p.state !== "dead").length;
@@ -481,6 +522,18 @@ export default function GameEngine() {
       style={{ fontFamily: "'Special Elite', 'Courier New', serif" }}
       onClick={resumeContext}
     >
+      {/* Progressive darkness + red tint overlay (30s → 90s) */}
+      {darknessProgress > 0 && (
+        <div
+          className="fixed inset-0 pointer-events-none z-[45]"
+          style={{
+            background: `rgba(50, 0, 0, ${darknessProgress * 0.72})`,
+            boxShadow: `inset 0 0 ${Math.round(darknessProgress * 300)}px rgba(180,0,0,${darknessProgress * 0.6})`,
+            transition: "background 1s ease, box-shadow 1s ease",
+          }}
+        />
+      )}
+
       {/* Kill notification */}
       {gameState.lastKillMessage && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-fade-in-up">

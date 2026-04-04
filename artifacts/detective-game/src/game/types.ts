@@ -81,6 +81,7 @@ export interface Person {
   wiggleDir: number;
   mood: "normal" | "nervous" | "happy" | "scared" | "suspicious";
   movementTimer: number;
+  timeWithPlayer: number;
   interactingWith?: string;
   accessories: string[];
 }
@@ -116,7 +117,10 @@ export interface SecretNote {
 }
 
 export interface GameState {
-  phase: "intro" | "playing" | "accusation" | "victory" | "defeat" | "jumpscare";
+  phase: "intro" | "introPanic" | "playing" | "accusation" | "victory" | "defeat" | "jumpscare";
+  jumpscareReason?: "wrong" | "timeout";
+  pendingHardMode?: boolean;
+  killSoundTrigger: number;
   currentRoom: RoomId;
   persons: Person[];
   rooms: Room[];

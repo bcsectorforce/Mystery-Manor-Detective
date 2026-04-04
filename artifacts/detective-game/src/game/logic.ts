@@ -86,6 +86,7 @@ export function initializePersons(numKillers: number = 1): Person[] {
       wiggleDir: 1,
       mood: "normal",
       movementTimer: randomInt(60, 200),
+      timeWithPlayer: 0,
       accessories: generateAccessories(i),
     };
   });
@@ -188,11 +189,25 @@ export function updatePersons(
       p.activity = activities[randomInt(0, activities.length - 1)];
       p.activityLabel = ACTIVITY_LABELS[p.activity];
 
-      // Sometimes change rooms (not killer when player watching)
-      if (Math.random() < 0.08 && !(p.isKiller && isPlayerInRoom(p.room))) {
+      // Track how long killer has been in player's room
+      if (p.isKiller) {
+        if (isPlayerInRoom(p.room)) {
+          p.timeWithPlayer = (p.timeWithPlayer || 0) + p.movementTimer + 1;
+        } else {
+          p.timeWithPlayer = 0;
+        }
+      }
+
+      // Killer flees if player has been in their room for ~30 seconds (1800 ticks)
+      const killerShouldFlee = p.isKiller && isPlayerInRoom(p.room) && (p.timeWithPlayer || 0) >= 1800;
+
+      // Sometimes change rooms (not killer when player watching, unless flee timer triggered)
+      if (Math.random() < 0.08 && !(p.isKiller && isPlayerInRoom(p.room) && !killerShouldFlee) || killerShouldFlee) {
         const rooms: RoomId[] = ["library", "kitchen", "ballroom", "garden"];
-        const newRoom = rooms[randomInt(0, 3)];
+        const otherRooms = killerShouldFlee ? rooms.filter((r) => r !== p.room) : rooms;
+        const newRoom = otherRooms[randomInt(0, otherRooms.length - 1)];
         if (newRoom !== p.room) {
+          if (killerShouldFlee) p.timeWithPlayer = 0;
           p.room = newRoom;
           const bounds = ROOM_BOUNDS[newRoom];
           p.x = randomBetween(bounds.minX, bounds.maxX);

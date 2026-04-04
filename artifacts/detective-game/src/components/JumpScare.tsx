@@ -3,6 +3,7 @@ import { playJumpScareSound } from "../game/audio";
 
 interface JumpScareProps {
   onDone: () => void;
+  reason?: "wrong" | "timeout";
 }
 
 const SCARE_MESSAGES = [
@@ -15,12 +16,27 @@ const SCARE_MESSAGES = [
   "NO ONE IS SAFE",
 ];
 
+const TIMEOUT_SCARE_MESSAGES = [
+  "HE FOUND YOU",
+  "THE KILLER GOT YOU",
+  "YOU TOOK TOO LONG",
+  "HE WAS WATCHING",
+  "YOU'RE NEXT",
+];
+
 const SECOND_MESSAGES = [
   "NOWHERE TO HIDE",
   "YOU FAILED THEM ALL",
   "HE FOUND YOU",
   "TOO LATE",
   "RUN.",
+];
+
+const TIMEOUT_SECOND_MESSAGES = [
+  "THE KILLER KILLED YOU",
+  "YOU RAN OUT OF TIME",
+  "HE GREW TIRED OF WAITING",
+  "PREY TOO SLOW TO RUN",
 ];
 
 // Each phase: [duration_ms, phase_type]
@@ -45,10 +61,13 @@ const PHASES: Array<[number, string]> = [
   // done
 ];
 
-export function JumpScare({ onDone }: JumpScareProps) {
+export function JumpScare({ onDone, reason }: JumpScareProps) {
   const [phase, setPhase] = useState(0);
-  const msgRef = useRef(SCARE_MESSAGES[Math.floor(Math.random() * SCARE_MESSAGES.length)]);
-  const msg2Ref = useRef(SECOND_MESSAGES[Math.floor(Math.random() * SECOND_MESSAGES.length)]);
+  const isTimeout = reason === "timeout";
+  const msgPool = isTimeout ? TIMEOUT_SCARE_MESSAGES : SCARE_MESSAGES;
+  const msg2Pool = isTimeout ? TIMEOUT_SECOND_MESSAGES : SECOND_MESSAGES;
+  const msgRef = useRef(msgPool[Math.floor(Math.random() * msgPool.length)]);
+  const msg2Ref = useRef(msg2Pool[Math.floor(Math.random() * msg2Pool.length)]);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
