@@ -290,6 +290,12 @@
   transition: width 0.5s ease;
 }
 
+/* Scan line animation for fingerprint zoom */
+@keyframes scan-line {
+  0%   { background-position: 0 -60px; }
+  100% { background-position: 0 220px; }
+}
+
 /* Tooltip */
 .tooltip-dark {
   background: hsl(222, 47%, 6%);

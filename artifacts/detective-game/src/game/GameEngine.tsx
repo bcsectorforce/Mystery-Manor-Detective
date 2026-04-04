@@ -22,6 +22,7 @@ import { JumpScare } from "../components/JumpScare";
 import { Notepad } from "../components/Notepad";
 import { SecretNoteModal } from "../components/SecretNoteModal";
 import { MiniCelebration } from "../components/MiniCelebration";
+import { FingerprintModal } from "../components/FingerprintModal";
 
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
@@ -77,6 +78,7 @@ const EMPTY_STATE: GameState = {
 
 export default function GameEngine() {
   const [gameState, setGameState] = useState<GameState>({ ...EMPTY_STATE });
+  const [fingerprintPersonId, setFingerprintPersonId] = useState<string | null>(null);
 
   const frameRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
@@ -386,6 +388,15 @@ export default function GameEngine() {
     setGameState((prev) => ({ ...prev, showNotepad: !prev.showNotepad }));
   }, []);
 
+  const handleDeadBodyClick = useCallback((personId: string) => {
+    if (!stateRef.current.hardMode) return;
+    setFingerprintPersonId(personId);
+  }, []);
+
+  const closeFingerprintModal = useCallback(() => {
+    setFingerprintPersonId(null);
+  }, []);
+
   const restartGame = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     stopAmbient();
@@ -567,11 +578,8 @@ export default function GameEngine() {
               </div>
               <div className="flex gap-2 text-xs opacity-70">
                 <span className="text-green-400">👤 {ac}</span>
-                {dc > 0 && <span className="text-red-400">💀 {dc}</span>}
+                {dc > 0 && <span className="text-red-400/80">✝ {dc}</span>}
                 {gameState.investigatedRooms.has(room.id) && <span className="text-primary">✓</span>}
-                {gameState.secretNote?.roomId === room.id && !gameState.secretNote.seen && (
-                  <span className="text-yellow-400 animate-heartbeat">📄</span>
-                )}
               </div>
             </button>
           ))}
@@ -630,6 +638,7 @@ export default function GameEngine() {
                 showIds={true}
                 secretNote={gameState.secretNote}
                 onNoteClick={handleNoteClick}
+                onDeadBodyClick={gameState.hardMode ? handleDeadBodyClick : undefined}
               />
               <div
                 className="absolute top-2 left-2 text-xs font-mono px-2 py-0.5 rounded"
@@ -685,6 +694,16 @@ export default function GameEngine() {
         <MiniCelebration
           killerName={gameState.miniCelebration.killerName}
           onDone={dismissMiniCelebration}
+        />
+      )}
+
+      {/* Fingerprint modal (hard mode only) */}
+      {fingerprintPersonId && (
+        <FingerprintModal
+          killerIds={gameState.persons
+            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id))
+            .map((p) => p.id)}
+          onClose={closeFingerprintModal}
         />
       )}
     </div>

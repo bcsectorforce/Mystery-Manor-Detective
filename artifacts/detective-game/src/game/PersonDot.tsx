@@ -7,11 +7,12 @@ interface PersonDotProps {
   isSelected: boolean;
   onClick: (id: string) => void;
   showId: boolean;
+  onDeadClick?: (id: string) => void;
 }
 
-export function PersonDot({ person, isCurrentRoom, isSelected, onClick, showId }: PersonDotProps) {
+export function PersonDot({ person, isCurrentRoom, isSelected, onClick, showId, onDeadClick }: PersonDotProps) {
   if (person.state === "dead") {
-    return <DeadPerson person={person} isCurrentRoom={isCurrentRoom} showId={showId} />;
+    return <DeadPerson person={person} isCurrentRoom={isCurrentRoom} showId={showId} onDeadClick={onDeadClick} />;
   }
 
   const size = person.size;
@@ -157,12 +158,27 @@ export function PersonDot({ person, isCurrentRoom, isSelected, onClick, showId }
   );
 }
 
-function DeadPerson({ person, isCurrentRoom, showId }: { person: Person; isCurrentRoom: boolean; showId: boolean }) {
+function DeadPerson({
+  person,
+  isCurrentRoom,
+  showId,
+  onDeadClick,
+}: {
+  person: Person;
+  isCurrentRoom: boolean;
+  showId: boolean;
+  onDeadClick?: (id: string) => void;
+}) {
   const size = person.size;
   const half = size / 2;
+  const clickable = !!onDeadClick;
 
   return (
-    <g transform={`translate(${person.x}, ${person.y})`}>
+    <g
+      transform={`translate(${person.x}, ${person.y})`}
+      style={{ cursor: clickable ? "pointer" : "default" }}
+      onClick={clickable ? () => onDeadClick(person.id) : undefined}
+    >
       {/* Blood pool */}
       <ellipse cx={5} cy={half + 2} rx={half + 6} ry={half * 0.6} fill="#8b0000" opacity={0.7} />
       {/* Body (fallen) */}
@@ -172,8 +188,12 @@ function DeadPerson({ person, isCurrentRoom, showId }: { person: Person; isCurre
       <line x1={-1} y1={-4} x2={-4} y2={-1} stroke="white" strokeWidth={1} />
       <line x1={1} y1={-4} x2={4} y2={-1} stroke="white" strokeWidth={1} />
       <line x1={4} y1={-4} x2={1} y2={-1} stroke="white" strokeWidth={1} />
-      {/* Crime scene marker */}
-      <text x={0} y={-half - 6} textAnchor="middle" fontSize={10}>💀</text>
+      {/* Clickable hint in hard mode */}
+      {clickable && (
+        <text x={0} y={-half - 5} textAnchor="middle" fontSize={6} fill="rgba(245,197,24,0.75)" fontFamily="monospace" style={{ pointerEvents: "none" }}>
+          [examine]
+        </text>
+      )}
       {/* Name */}
       {showId && (
         <g>

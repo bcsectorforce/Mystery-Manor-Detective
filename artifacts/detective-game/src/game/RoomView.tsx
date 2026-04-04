@@ -12,6 +12,7 @@ interface RoomViewProps {
   showIds: boolean;
   secretNote?: SecretNote | null;
   onNoteClick?: () => void;
+  onDeadBodyClick?: (id: string) => void;
 }
 
 export function RoomView({
@@ -24,6 +25,7 @@ export function RoomView({
   showIds,
   secretNote,
   onNoteClick,
+  onDeadBodyClick,
 }: RoomViewProps) {
   const roomPersons = persons.filter((p) => p.room === room.id);
   const bgPatterns: Record<RoomId, string> = {
@@ -162,6 +164,7 @@ export function RoomView({
           isSelected={selectedPersonId === p.id}
           onClick={onPersonClick}
           showId={showIds}
+          onDeadClick={onDeadBodyClick}
         />
       ))}
 
