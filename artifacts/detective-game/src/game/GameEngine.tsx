@@ -23,6 +23,36 @@ import { SecretNoteModal } from "../components/SecretNoteModal";
 
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
+const FRAMING_START_TICKS = 30 * 60; // 30 seconds at ~60fps
+
+function buildSecretNote(persons: Person[]): SecretNote {
+  const rooms: RoomId[] = ["library", "kitchen", "ballroom", "garden"];
+  const roomBounds: Record<RoomId, { minX: number; maxX: number; minY: number; maxY: number }> = {
+    library:  { minX: 120, maxX: 280, minY: 200, maxY: 300 },
+    kitchen:  { minX: 140, maxX: 240, minY: 200, maxY: 290 },
+    ballroom: { minX: 100, maxX: 250, minY: 240, maxY: 300 },
+    garden:   { minX: 90,  maxX: 240, minY: 200, maxY: 300 },
+  };
+  const roomId = rooms[Math.floor(Math.random() * rooms.length)];
+  const bounds = roomBounds[roomId];
+  const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+  const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+
+  const killers = persons.filter((p) => p.isKiller);
+  const warm1 = killers[0] ? isWarmColor(killers[0].color) : false;
+  const warm2 = killers[1] ? isWarmColor(killers[1].color) : false;
+
+  return {
+    roomId,
+    x,
+    y,
+    warm1,
+    warm2,
+    twoKillers: killers.length > 1,
+    seen: false,
+  };
+}
+
 export default function GameEngine() {
   const [gameState, setGameState] = useState<GameState>({
     phase: "intro",
@@ -57,19 +87,26 @@ export default function GameEngine() {
   const stateRef = useRef(gameState);
   stateRef.current = gameState;
 
-  // Start game
-  const startGame = useCallback(() => {
-    const persons = initializePersons();
+  // Start game — now receives hardMode from IntroScreen
+  const startGame = useCallback((hardMode: boolean) => {
+    const numKillers = hardMode ? 2 : 1;
+    const persons = initializePersons(numKillers);
     const suspicionMeterByPerson: Record<string, number> = {};
     persons.forEach((p) => {
       suspicionMeterByPerson[p.id] = 0;
     });
 
+    const secretNote = hardMode ? buildSecretNote(persons) : null;
+
     setGameState((prev) => ({
       ...prev,
       phase: "playing",
+      hardMode,
       persons,
       suspicionMeterByPerson,
+      secretNote,
+      showSecretNote: false,
+      framingActive: false,
       clues: [
         {
           id: generateId(),
@@ -81,7 +118,9 @@ export default function GameEngine() {
         },
         {
           id: generateId(),
-          text: "The host whispers: 'One of my guests is not who they seem. Find them before it's too late.'",
+          text: hardMode
+            ? "Two killers lurk among the guests. The host whispers: 'Not one, but two shadows hide in this manor…'"
+            : "The host whispers: 'One of my guests is not who they seem. Find them before it's too late.'",
           room: "library",
           timestamp: 0,
           category: "witness",
@@ -109,7 +148,20 @@ export default function GameEngine() {
           let newTotalKills = prev.totalKills;
           let newScreenShake = false;
 
-          const killer = prev.persons.find((p) => p.isKiller);
+          // Activate framing at 30 seconds
+          const newFramingActive = prev.framingActive || newTimeElapsed >= FRAMING_START_TICKS;
+          if (!prev.framingActive && newTimeElapsed >= FRAMING_START_TICKS) {
+            newClues.push({
+              id: generateId(),
+              text: "⚠️ Something shifts in the manor. Evidence is being planted…",
+              room: prev.currentRoom,
+              timestamp: newTimeElapsed,
+              category: "witness",
+              severity: "high",
+            });
+          }
+
+          const killers = prev.persons.filter((p) => p.isKiller);
 
           const updatedPersons = updatePersons(
             prev.persons,
@@ -127,10 +179,12 @@ export default function GameEngine() {
             (room) => room === prev.currentRoom
           );
 
-          // Generate behavioral clues
-          if (killer && killer.state !== "dead") {
-            const behaviorClue = generateBehaviorClue(killer, updatedPersons, newTimeElapsed);
-            if (behaviorClue) newClues.push(behaviorClue);
+          // Generate behavioral clues from all killers
+          for (const killer of killers) {
+            if (killer.state !== "dead") {
+              const behaviorClue = generateBehaviorClue(killer, updatedPersons, newTimeElapsed);
+              if (behaviorClue) newClues.push(behaviorClue);
+            }
           }
 
           // Red herring clues
@@ -139,6 +193,16 @@ export default function GameEngine() {
             const randomInnocent = innocents[Math.floor(Math.random() * innocents.length)];
             const redHerring = generateRedHerringClue(randomInnocent, newTimeElapsed);
             if (redHerring) newClues.push(redHerring);
+          }
+
+          // Framing clues — killers frame innocents after 30 seconds
+          if (newFramingActive && innocents.length > 0) {
+            for (const killer of killers) {
+              if (killer.state !== "dead" && Math.random() < 0.002) {
+                const target = innocents[Math.floor(Math.random() * innocents.length)];
+                newClues.push(generateFramingClue(target, newTimeElapsed));
+              }
+            }
           }
 
           // Add kills as clues if any
@@ -159,6 +223,7 @@ export default function GameEngine() {
             totalKills: newTotalKills,
             timeElapsed: newTimeElapsed,
             screenShake: newScreenShake,
+            framingActive: newFramingActive,
             lastKillMessage: newKills.length > 0
               ? `${prev.persons.find((p) => p.id === newKills[0].victimId)?.name} was killed while you weren't watching!`
               : undefined,
@@ -222,6 +287,21 @@ export default function GameEngine() {
     });
   }, []);
 
+  const handleNoteClick = useCallback(() => {
+    setGameState((prev) => {
+      if (!prev.secretNote) return prev;
+      return {
+        ...prev,
+        showSecretNote: true,
+        secretNote: { ...prev.secretNote, seen: true },
+      };
+    });
+  }, []);
+
+  const closeSecretNote = useCallback(() => {
+    setGameState((prev) => ({ ...prev, showSecretNote: false }));
+  }, []);
+
   const adjustSuspicion = useCallback((personId: string, delta: number) => {
     setGameState((prev) => ({
       ...prev,
@@ -235,16 +315,16 @@ export default function GameEngine() {
   const handleAccuse = useCallback(() => {
     const { accusationInput, persons } = stateRef.current;
     const trimmed = accusationInput.trim();
-    const killer = persons.find((p) => p.isKiller);
+    const killers = persons.filter((p) => p.isKiller);
 
-    if (!killer) return;
+    if (killers.length === 0) return;
 
-    const correct = trimmed === killer.id;
+    // In hard mode, player must accuse a killer (any of them)
+    const correct = killers.some((k) => k.id === trimmed);
     const confettiPieces = correct ? generateConfetti() : [];
 
     setGameState((prev) => ({
       ...prev,
-      // Wrong → jumpscare first; correct → victory immediately
       phase: correct ? "victory" : "jumpscare",
       accusationResult: correct ? "correct" : "wrong",
       confettiPieces,
@@ -303,6 +383,10 @@ export default function GameEngine() {
       confettiPieces: [],
       screenShake: false,
       introStep: 0,
+      hardMode: false,
+      framingActive: false,
+      secretNote: null,
+      showSecretNote: false,
     });
   }, []);
 
@@ -367,6 +451,9 @@ export default function GameEngine() {
     deadCount: gameState.persons.filter((p) => p.room === room.id && p.state === "dead").length,
   }));
 
+  // Framing warning badge
+  const framingBadge = gameState.framingActive;
+
   return (
     <div
       className={`min-h-screen bg-background text-foreground flex flex-col overflow-hidden ${
@@ -381,6 +468,21 @@ export default function GameEngine() {
             <span className="text-red-400 font-bold mr-2">⚠️ MURDER!</span>
             {gameState.lastKillMessage}
           </div>
+        </div>
+      )}
+
+      {/* Framing active banner */}
+      {framingBadge && (
+        <div
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-40 px-4 py-1 rounded text-xs font-bold tracking-widest animate-fade-in-up pointer-events-none"
+          style={{
+            background: "rgba(80,0,0,0.7)",
+            border: "1px solid rgba(200,0,0,0.5)",
+            color: "#ff6666",
+            letterSpacing: "0.2em",
+          }}
+        >
+          ☠ EVIDENCE IS BEING PLANTED ☠
         </div>
       )}
 
@@ -403,6 +505,9 @@ export default function GameEngine() {
           <Stat icon="💀" label="Dead" value={deadCount.toString()} color={deadCount > 0 ? "text-red-500" : "text-muted-foreground"} />
           <Stat icon="🗂" label="Clues" value={gameState.clues.length.toString()} color={criticalClues > 0 ? "text-yellow-400" : "text-muted-foreground"} />
           <Stat icon="🏃" label="Rooms visited" value={gameState.investigatedRooms.size.toString()} />
+          {gameState.hardMode && (
+            <span className="text-red-400 text-xs font-bold tracking-wider border border-red-800 px-2 py-0.5 rounded">☠ HARD</span>
+          )}
         </div>
 
         {/* Action buttons */}
@@ -464,6 +569,10 @@ export default function GameEngine() {
                 <span className="text-green-400">👤 {ac}</span>
                 {dc > 0 && <span className="text-red-400">💀 {dc}</span>}
                 {gameState.investigatedRooms.has(room.id) && <span className="text-primary">✓</span>}
+                {/* Note indicator */}
+                {gameState.secretNote?.roomId === room.id && !gameState.secretNote.seen && (
+                  <span className="text-yellow-400 animate-heartbeat">📄</span>
+                )}
               </div>
             </button>
           ))}
@@ -524,6 +633,8 @@ export default function GameEngine() {
                 }}
                 onObjectClick={handleObjectClue}
                 showIds={true}
+                secretNote={gameState.secretNote}
+                onNoteClick={handleNoteClick}
               />
               {/* Room corner labels */}
               <div
@@ -569,6 +680,11 @@ export default function GameEngine() {
         <div className="fixed left-48 top-12 bottom-0 w-80 z-40 border-r border-l border-border bg-card/95 backdrop-blur-sm overflow-hidden flex flex-col">
           <Notepad notes={gameState.notes} onUpdate={updateNotes} onClose={toggleNotepad} />
         </div>
+      )}
+
+      {/* Secret note modal */}
+      {gameState.showSecretNote && gameState.secretNote && (
+        <SecretNoteModal note={gameState.secretNote} onClose={closeSecretNote} />
       )}
     </div>
   );
@@ -620,67 +736,51 @@ function ActivityFeed({
             <button
               key={p.id}
               onClick={() => onSelectPerson(p.id)}
-              className="w-full flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white/5 transition-all text-left mb-1"
+              className="w-full flex items-center gap-2 py-1 px-1 rounded hover:bg-white/5 transition-all text-left"
             >
-              <div className="relative flex-shrink-0">
-                <svg width={20} height={20} viewBox="-10 -10 20 20">
-                  <circle r={8} fill={p.color} stroke={p.secondaryColor} strokeWidth={1.5} />
-                  <circle r={4} fill={p.secondaryColor} opacity={0.5} />
-                </svg>
-              </div>
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: p.color }} />
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-bold text-foreground truncate">{p.name}</div>
-                <div className="text-xs text-muted-foreground truncate">{p.activityLabel}</div>
+                <p className="text-xs font-bold truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{p.activityLabel}</p>
               </div>
-              <span className="text-xs text-muted-foreground font-mono">#{p.id}</span>
             </button>
           ))
         )}
       </div>
 
-      {/* Dead persons */}
-      {deadPersons.length > 0 && (
-        <div className="p-3 border-b border-border">
-          <h4 className="text-xs text-red-500 uppercase tracking-widest mb-2">Victims</h4>
-          {deadPersons.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 py-0.5 text-xs text-red-400/60">
-              <span>💀</span>
-              <span className="line-through">{p.name}</span>
-              <span className="ml-auto font-mono">#{p.id}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Recent events */}
-      <div className="p-3 border-b border-border">
+      <div className="p-3 border-b border-border flex-shrink-0">
         <h3 className="text-xs text-muted-foreground uppercase tracking-widest mb-2">Recent Events</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {recentClues.map((clue) => (
           <div
             key={clue.id}
-            className={`text-xs rounded px-2 py-1.5 evidence-card ${
+            className={`text-xs p-2 rounded border ${
               clue.severity === "critical"
-                ? "border-l-red-500 bg-red-950/20"
+                ? "bg-red-900/30 border-red-800 text-red-200"
                 : clue.severity === "high"
-                ? "border-l-orange-500 bg-orange-950/10"
-                : ""
+                ? "bg-orange-900/20 border-orange-800/50 text-orange-200"
+                : "bg-card/50 border-border text-muted-foreground"
             }`}
-            style={{ borderLeftColor: clue.severity === "critical" ? "#ef4444" : clue.severity === "high" ? "#f97316" : undefined }}
           >
-            <div className="text-muted-foreground leading-relaxed">{clue.text}</div>
-            <div className="flex justify-between mt-1">
-              <span className="text-muted-foreground/50 capitalize">{clue.category}</span>
-              <span className="text-muted-foreground/50 font-mono">{formatTime(Math.floor(clue.timestamp / 60))}</span>
-            </div>
+            {clue.text}
           </div>
         ))}
-        {recentClues.length === 0 && (
-          <p className="text-xs text-muted-foreground italic">No events logged yet. Move around and investigate!</p>
-        )}
       </div>
+
+      {/* Dead list */}
+      {deadPersons.length > 0 && (
+        <div className="p-3 border-t border-border">
+          <h3 className="text-xs text-muted-foreground uppercase tracking-widest mb-2">Victims ({deadPersons.length})</h3>
+          {deadPersons.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 py-0.5">
+              <div className="w-2 h-2 rounded-full flex-shrink-0 opacity-40" style={{ background: p.color }} />
+              <span className="text-xs text-muted-foreground/60 line-through">{p.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
