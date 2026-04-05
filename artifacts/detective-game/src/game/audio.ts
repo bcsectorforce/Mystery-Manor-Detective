@@ -930,14 +930,32 @@ export function playStrangerWhisper(firstDigit: string, lastDigit: string) {
     window.speechSynthesis.cancel();
     const msg = `The killer's ID... starts with ${firstDigit}... and ends with... ${lastDigit}`;
     const utter = new SpeechSynthesisUtterance(msg);
-    utter.rate = 0.65;
-    utter.pitch = 0.4;
-    utter.volume = 0.9;
+    utter.rate = 0.6;
+    utter.pitch = 0.35;
+    utter.volume = 1.0;
+
+    const applyVoiceAndSpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const deepVoice = voices.find(
+        (v) => v.name.toLowerCase().includes("male") || v.lang === "en-GB" || v.lang.startsWith("en")
+      );
+      if (deepVoice) utter.voice = deepVoice;
+      window.speechSynthesis.speak(utter);
+    };
+
     const voices = window.speechSynthesis.getVoices();
-    const deepVoice = voices.find((v) => v.name.toLowerCase().includes("male") || v.lang === "en-GB");
-    if (deepVoice) utter.voice = deepVoice;
-    window.speechSynthesis.speak(utter);
-  }, 500);
+    if (voices.length > 0) {
+      applyVoiceAndSpeak();
+    } else {
+      // Voices not loaded yet — wait for them
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        applyVoiceAndSpeak();
+      };
+      // Fallback: also try immediately in case event never fires
+      setTimeout(applyVoiceAndSpeak, 300);
+    }
+  }, 600);
 }
 
 export function playStrangerKnifeStrike() {

@@ -26,7 +26,7 @@ export function StrangerCinematic({ phase, uncaughtKillerIds, onFollow, onStay, 
   const [torchFlicker, setTorchFlicker] = useState(1);
   const [fadeOpacity, setFadeOpacity] = useState(0);
   const [outcome] = useState<"killed" | "revealed">(() =>
-    Math.random() < 0.5 ? "killed" : "revealed"
+    Math.random() < 0.45 ? "killed" : "revealed"
   );
   const animRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number>(0);

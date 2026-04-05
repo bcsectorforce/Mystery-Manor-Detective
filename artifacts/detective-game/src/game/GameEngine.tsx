@@ -25,6 +25,7 @@ import { Notepad } from "../components/Notepad";
 import { SecretNoteModal } from "../components/SecretNoteModal";
 import { MiniCelebration } from "../components/MiniCelebration";
 import { FingerprintModal } from "../components/FingerprintModal";
+import { BloodDroplets } from "../components/BloodDroplets";
 
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
@@ -86,6 +87,7 @@ const EMPTY_STATE: GameState = {
   radioState: "unavailable",
   radioChargeStartTick: 0,
   radioMinigameOpen: false,
+  radioUsed: false,
   strangerTriggered: false,
   strangerPhase: "none",
 };
@@ -392,8 +394,8 @@ export default function GameEngine() {
           ),
           miniCelebration: { killerName: matchedKiller.name, killerId: matchedKiller.id },
           accusationInput: "",
-          // Enable radio now that 1+ killer caught
-          radioState: prev.radioState === "unavailable" ? "idle" : prev.radioState,
+          // Enable radio now that 1+ killer caught (only if not already used)
+          radioState: (prev.radioState === "unavailable" && !prev.radioUsed) ? "idle" : prev.radioState,
           clues: [...prev.clues, {
             id: generateId(),
             text: `🎯 ${matchedKiller.name} (ID: #${matchedKiller.id}) has been caught! ${remainingUncaught} killer${remainingUncaught !== 1 ? "s" : ""} still at large. Check the radio in the library.`,
@@ -445,8 +447,8 @@ export default function GameEngine() {
     setGameState((prev) => ({
       ...prev,
       radioMinigameOpen: false,
-      // One-time use — disable after the player uses it
       radioState: "unavailable",
+      radioUsed: true,
     }));
   }, []);
 
@@ -832,7 +834,7 @@ export default function GameEngine() {
         <StrangerCinematic
           phase={gameState.strangerPhase}
           uncaughtKillerIds={gameState.persons
-            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id))
+            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id) && p.state !== "dead")
             .map((p) => p.id)}
           onFollow={handleStrangerFollow}
           onStay={handleStrangerStay}
@@ -845,7 +847,7 @@ export default function GameEngine() {
       {gameState.radioMinigameOpen && (
         <RadioMinigame
           uncaughtKillerIds={gameState.persons
-            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id))
+            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id) && p.state !== "dead")
             .map((p) => p.id)}
           onClose={closeRadioMinigame}
         />
@@ -858,6 +860,9 @@ export default function GameEngine() {
           onDone={dismissMiniCelebration}
         />
       )}
+
+      {/* Blood drip overlay on kills */}
+      <BloodDroplets trigger={gameState.killSoundTrigger} />
 
       {/* Fingerprint modal (hard mode only) */}
       {fingerprintPersonId && (

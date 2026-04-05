@@ -155,6 +155,7 @@ export interface GameState {
   radioState: "unavailable" | "idle" | "charging" | "charged";
   radioChargeStartTick: number;
   radioMinigameOpen: boolean;
+  radioUsed: boolean;
 }
 
 export interface ConfettiPiece {
