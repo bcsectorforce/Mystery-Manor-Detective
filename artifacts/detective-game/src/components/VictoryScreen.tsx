@@ -149,33 +149,35 @@ export function VictoryScreen({ killers, killHistory, clues, timeElapsed, confet
 
   return (
     <div
-      className="fixed inset-0 bg-black flex flex-col items-center justify-center overflow-hidden"
+      className="fixed inset-0 bg-black overflow-y-auto"
       style={{ fontFamily: "'Special Elite', 'Courier New', serif" }}
     >
-      {confettiPieces.map((piece, i) => (
+      {/* Confetti + glow — fixed behind content */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        {confettiPieces.map((piece, i) => (
+          <div
+            key={piece.id}
+            className="absolute animate-confetti pointer-events-none"
+            style={{
+              left: `${piece.x}%`,
+              top: `-${piece.size}px`,
+              width: piece.size,
+              height: piece.size,
+              background: piece.color,
+              borderRadius: i % 3 === 0 ? "50%" : i % 3 === 1 ? "2px" : "0",
+              animationDuration: `${piece.duration}s`,
+              animationDelay: `${piece.delay}s`,
+              transform: `rotate(${rotations[i] || 0}deg)`,
+            }}
+          />
+        ))}
         <div
-          key={piece.id}
-          className="absolute animate-confetti pointer-events-none"
-          style={{
-            left: `${piece.x}%`,
-            top: `-${piece.size}px`,
-            width: piece.size,
-            height: piece.size,
-            background: piece.color,
-            borderRadius: i % 3 === 0 ? "50%" : i % 3 === 1 ? "2px" : "0",
-            animationDuration: `${piece.duration}s`,
-            animationDelay: `${piece.delay}s`,
-            transform: `rotate(${rotations[i] || 0}deg)`,
-          }}
+          className="absolute inset-0"
+          style={{ background: "radial-gradient(ellipse at center, rgba(245,197,24,0.15) 0%, transparent 70%)" }}
         />
-      ))}
+      </div>
 
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse at center, rgba(245,197,24,0.15) 0%, transparent 70%)" }}
-      />
-
-      <div className="relative z-10 max-w-2xl w-full px-8 text-center">
+      <div className="relative z-10 max-w-2xl w-full px-8 text-center mx-auto py-16">
         <div
           className="text-8xl mb-4"
           style={{

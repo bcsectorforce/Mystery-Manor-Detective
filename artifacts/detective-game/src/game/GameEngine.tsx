@@ -11,6 +11,7 @@ import {
   formatTime,
 } from "./logic";
 import { startAmbient, stopAmbient, resumeContext, playMiniCelebration, playKillSound } from "./audio";
+import { RadioMinigame } from "../components/RadioMinigame";
 import { RoomView } from "./RoomView";
 import { CluePanel } from "../components/CluePanel";
 import { PersonPanel } from "../components/PersonPanel";
@@ -79,6 +80,9 @@ const EMPTY_STATE: GameState = {
   showSecretNote: false,
   killersCaught: [],
   miniCelebration: null,
+  radioState: "unavailable",
+  radioChargeStartTick: 0,
+  radioMinigameOpen: false,
 };
 
 export default function GameEngine() {
@@ -229,6 +233,13 @@ export default function GameEngine() {
             };
           }
 
+          // Radio: charge check (600 ticks ≈ 10 real seconds at 60fps)
+          const CHARGE_TICKS = 600;
+          let newRadioState = prev.radioState;
+          if (prev.radioState === "charging" && newTimeElapsed - prev.radioChargeStartTick >= CHARGE_TICKS) {
+            newRadioState = "charged";
+          }
+
           return {
             ...prev,
             persons: updatedPersons,
@@ -242,6 +253,7 @@ export default function GameEngine() {
             lastKillMessage: newKills.length > 0
               ? `${prev.persons.find((p) => p.id === newKills[0].victimId)?.name} was killed while you weren't watching!`
               : undefined,
+            radioState: newRadioState,
           };
         });
       }
@@ -356,17 +368,24 @@ export default function GameEngine() {
           accusationInput: "",
         }));
       } else {
-        // First killer caught — mini celebration, keep playing
+        // Partial catch — mini celebration, keep playing
         playMiniCelebration();
+        const remainingUncaught = allKillers.length - newCaught.length;
         setGameState((prev) => ({
           ...prev,
           phase: "playing",
           killersCaught: newCaught,
+          // Mark caught killer as dead so they leave the room and stop wandering
+          persons: prev.persons.map((p) =>
+            p.id === matchedKiller.id ? { ...p, state: "dead" as const } : p
+          ),
           miniCelebration: { killerName: matchedKiller.name, killerId: matchedKiller.id },
           accusationInput: "",
+          // Enable radio now that 1+ killer caught
+          radioState: prev.radioState === "unavailable" ? "idle" : prev.radioState,
           clues: [...prev.clues, {
             id: generateId(),
-            text: `🎯 ${matchedKiller.name} (ID: #${matchedKiller.id}) has been caught! ${allKillers.length - newCaught.length} killer${allKillers.length - newCaught.length !== 1 ? "s" : ""} still at large.`,
+            text: `🎯 ${matchedKiller.name} (ID: #${matchedKiller.id}) has been caught! ${remainingUncaught} killer${remainingUncaught !== 1 ? "s" : ""} still at large. Check the radio in the library.`,
             room: prev.currentRoom,
             timestamp: prev.timeElapsed,
             category: "murder",
@@ -395,6 +414,29 @@ export default function GameEngine() {
 
   const dismissMiniCelebration = useCallback(() => {
     setGameState((prev) => ({ ...prev, miniCelebration: null }));
+  }, []);
+
+  const handleRadioClick = useCallback(() => {
+    const { radioState, timeElapsed, currentRoom } = stateRef.current;
+    if (currentRoom !== "library") return;
+    if (radioState === "idle") {
+      setGameState((prev) => ({
+        ...prev,
+        radioState: "charging",
+        radioChargeStartTick: prev.timeElapsed,
+      }));
+    } else if (radioState === "charged") {
+      setGameState((prev) => ({ ...prev, radioMinigameOpen: true }));
+    }
+  }, []);
+
+  const closeRadioMinigame = useCallback(() => {
+    setGameState((prev) => ({
+      ...prev,
+      radioMinigameOpen: false,
+      // Reset to idle so it can be recharged for the next killer
+      radioState: "idle",
+    }));
   }, []);
 
   const handleJumpScareDone = useCallback(() => {
@@ -691,7 +733,7 @@ export default function GameEngine() {
             <div className="relative scanlines" style={{ border: `2px solid ${currentRoom.color}30` }}>
               <RoomView
                 room={currentRoom}
-                persons={gameState.persons}
+                persons={gameState.persons.filter((p) => !gameState.killersCaught.includes(p.id))}
                 isCurrentRoom={true}
                 selectedPersonId={gameState.showPersonDetails}
                 onPersonClick={(id) => selectPerson(id === gameState.showPersonDetails ? null : id)}
@@ -701,6 +743,13 @@ export default function GameEngine() {
                 onNoteClick={handleNoteClick}
                 onDeadBodyClick={gameState.hardMode ? handleDeadBodyClick : undefined}
                 scanAvailable={fingerprintUsesLeft > 0}
+                radioState={gameState.hardMode ? gameState.radioState : undefined}
+                radioChargeProgress={
+                  gameState.radioState === "charging"
+                    ? Math.min(1, (gameState.timeElapsed - gameState.radioChargeStartTick) / 600)
+                    : gameState.radioState === "charged" ? 1 : 0
+                }
+                onRadioClick={handleRadioClick}
               />
               <div
                 className="absolute top-2 left-2 text-xs font-mono px-2 py-0.5 rounded"
@@ -724,7 +773,7 @@ export default function GameEngine() {
             />
           ) : (
             <ActivityFeed
-              persons={gameState.persons}
+              persons={gameState.persons.filter((p) => !gameState.killersCaught.includes(p.id))}
               currentRoom={gameState.currentRoom}
               clues={gameState.clues}
               onSelectPerson={selectPerson}
@@ -749,6 +798,16 @@ export default function GameEngine() {
       {/* Secret note modal */}
       {gameState.showSecretNote && gameState.secretNote && (
         <SecretNoteModal note={gameState.secretNote} onClose={closeSecretNote} />
+      )}
+
+      {/* Radio minigame */}
+      {gameState.radioMinigameOpen && (
+        <RadioMinigame
+          uncaughtKillerIds={gameState.persons
+            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id))
+            .map((p) => p.id)}
+          onClose={closeRadioMinigame}
+        />
       )}
 
       {/* Mini celebration overlay */}

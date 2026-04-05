@@ -149,6 +149,9 @@ export interface GameState {
   introStep: number;
   killersCaught: string[];
   miniCelebration: { killerName: string; killerId: string } | null;
+  radioState: "unavailable" | "idle" | "charging" | "charged";
+  radioChargeStartTick: number;
+  radioMinigameOpen: boolean;
 }
 
 export interface ConfettiPiece {

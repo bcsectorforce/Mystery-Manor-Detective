@@ -14,6 +14,9 @@ interface RoomViewProps {
   onNoteClick?: () => void;
   onDeadBodyClick?: (id: string) => void;
   scanAvailable?: boolean;
+  radioState?: "unavailable" | "idle" | "charging" | "charged";
+  radioChargeProgress?: number;
+  onRadioClick?: () => void;
 }
 
 export function RoomView({
@@ -28,6 +31,9 @@ export function RoomView({
   onNoteClick,
   onDeadBodyClick,
   scanAvailable,
+  radioState,
+  radioChargeProgress = 0,
+  onRadioClick,
 }: RoomViewProps) {
   const roomPersons = persons.filter((p) => p.room === room.id);
   const bgPatterns: Record<RoomId, string> = {
@@ -211,6 +217,74 @@ export function RoomView({
                 [examine]
               </text>
             </>
+          )}
+        </g>
+      )}
+
+      {/* ── RADIO (library only, hard mode) ── */}
+      {room.id === "library" && radioState && radioState !== "unavailable" && isCurrentRoom && (
+        <g
+          onClick={radioState === "idle" || radioState === "charged" ? onRadioClick : undefined}
+          style={{ cursor: radioState === "idle" || radioState === "charged" ? "pointer" : "default" }}
+        >
+          {/* Radio body */}
+          <rect x={272} y={52} width={72} height={42} rx={5}
+            fill={radioState === "charged" ? "#0a1a0a" : "#1a1208"}
+            stroke={radioState === "charged" ? "#00cc44" : "#5a3a10"}
+            strokeWidth={radioState === "charged" ? 2 : 1.5}
+          >
+            {radioState === "charged" && (
+              <animate attributeName="stroke-opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
+            )}
+          </rect>
+          {/* Speaker grille dots */}
+          {[0,1,2,3,4,5].map((i) => (
+            <circle key={i} cx={278 + (i % 3) * 7} cy={61 + Math.floor(i / 3) * 7} r={2}
+              fill={radioState === "charged" ? "#004400" : "#2a1800"} />
+          ))}
+          {/* Tuning dial */}
+          <circle cx={322} cy={68} r={10} fill="#111" stroke="#444" strokeWidth={1.5} />
+          <circle cx={322} cy={68} r={6} fill="#1a1a1a" />
+          <line x1={322} y1={68} x2={326} y2={63} stroke="#c8860a" strokeWidth={1.5} strokeLinecap="round" />
+          {/* Power LED */}
+          <circle cx={308} cy={62} r={3}
+            fill={radioState === "charged" ? "#00ff44" : radioState === "charging" ? "#ffaa00" : "#330000"}
+            filter={radioState === "charged" ? "url(#screenglow)" : undefined}
+          />
+          {/* Antenna */}
+          <line x1={336} y1={52} x2={342} y2={34} stroke="#444" strokeWidth={2} strokeLinecap="round" />
+          <circle cx={342} cy={33} r={2} fill="#333" />
+          {/* Frequency readout */}
+          <rect x={280} y={78} width={56} height={12} rx={2} fill="#001800" stroke="#003300" strokeWidth={1} />
+          {radioState === "charged" ? (
+            <text x={308} y={88} textAnchor="middle" fontSize={7} fill="#00ff44" fontFamily="monospace">READY</text>
+          ) : radioState === "charging" ? (
+            <text x={308} y={88} textAnchor="middle" fontSize={7} fill="#ffaa00" fontFamily="monospace">CHARGING</text>
+          ) : (
+            <text x={308} y={88} textAnchor="middle" fontSize={7} fill="#336633" fontFamily="monospace">88.1 MHz</text>
+          )}
+          {/* Label above */}
+          <text x={308} y={50} textAnchor="middle" fontSize={6} fill={radioState === "charged" ? "rgba(0,255,68,0.8)" : "rgba(245,197,24,0.6)"}>
+            {radioState === "charged" ? "▶ USE RADIO" : radioState === "charging" ? "CHARGING…" : "▶ CHARGE RADIO"}
+          </text>
+
+          {/* Charging bar (below radio) */}
+          {radioState === "charging" && (
+            <g>
+              <rect x={272} y={97} width={72} height={8} rx={4} fill="#111" stroke="#333" strokeWidth={1} />
+              <rect x={272} y={97} width={Math.max(0, 72 * radioChargeProgress)} height={8} rx={4} fill="#c8860a" />
+              <text x={308} y={114} textAnchor="middle" fontSize={6} fill="#c8860a">
+                {Math.round(radioChargeProgress * 100)}%
+              </text>
+            </g>
+          )}
+          {radioState === "charged" && (
+            <g>
+              <rect x={272} y={97} width={72} height={8} rx={4} fill="#001800" stroke="#00cc44" strokeWidth={1}>
+                <animate attributeName="stroke-opacity" values="1;0.3;1" dur="0.8s" repeatCount="indefinite" />
+              </rect>
+              <rect x={272} y={97} width={72} height={8} rx={4} fill="#00cc44" opacity={0.3} />
+            </g>
           )}
         </g>
       )}

@@ -836,3 +836,71 @@ export function playMiniCelebration() {
     osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.6);
   });
 }
+
+// ─── Radio static + reveal chime ──────────────────────────────────────────────
+
+export function createStaticSource(): { stop: () => void } {
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+  const bufSize = ac.sampleRate * 2;
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+
+  const bandpass = ac.createBiquadFilter();
+  bandpass.type = "bandpass";
+  bandpass.frequency.value = 2200;
+  bandpass.Q.value = 0.6;
+
+  const gain = ac.createGain();
+  gain.gain.value = 0.18;
+
+  src.connect(bandpass);
+  bandpass.connect(gain);
+  gain.connect(ac.destination);
+  src.start();
+
+  return {
+    stop: () => {
+      try {
+        gain.gain.setTargetAtTime(0, ac.currentTime, 0.05);
+        setTimeout(() => { try { src.stop(); } catch (_) {} }, 300);
+      } catch (_) {}
+    },
+  };
+}
+
+export function playRevealChime() {
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+  const now = ac.currentTime;
+
+  // Three rising tones — like a signal locking in
+  const freqs = [440, 554, 659];
+  freqs.forEach((f, i) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = "sine";
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(0, now + i * 0.18);
+    g.gain.linearRampToValueAtTime(0.22, now + i * 0.18 + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.7);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(now + i * 0.18); osc.stop(now + i * 0.18 + 0.8);
+  });
+
+  // Low rumble underneath
+  const rumble = ac.createOscillator();
+  const rg = ac.createGain();
+  rumble.type = "triangle";
+  rumble.frequency.value = 80;
+  rg.gain.setValueAtTime(0, now);
+  rg.gain.linearRampToValueAtTime(0.1, now + 0.1);
+  rg.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+  rumble.connect(rg); rg.connect(ac.destination);
+  rumble.start(now); rumble.stop(now + 1.3);
+}
