@@ -78,7 +78,7 @@ export function MiniCelebration({ killerName, onDone }: MiniCelebrationProps) {
                 className="px-4 py-2 rounded-lg border border-red-700/60 text-red-300 text-sm"
                 style={{ background: "rgba(80,0,0,0.4)", animation: "pulse-danger 1.2s infinite" }}
               >
-                ☠ One killer still lurks in the manor…
+                ☠ One killer still lurks in the mansion…
               </div>
               <p className="text-muted-foreground text-xs mt-2 italic">Returning to investigation…</p>
             </div>

@@ -119,7 +119,7 @@ export default function GameEngine() {
       clues: [
         {
           id: generateId(),
-          text: "You arrived at the manor. Something feels off. Keep your eyes sharp.",
+          text: "You arrived at the mansion. Something feels off. Keep your eyes sharp.",
           room: "library",
           timestamp: 0,
           category: "witness",
@@ -128,7 +128,7 @@ export default function GameEngine() {
         {
           id: generateId(),
           text: hardMode
-            ? "Three killers lurk among the guests. The host whispers: 'Not one, not two — three shadows hide in this manor…'"
+            ? "Three killers lurk among the guests. The host whispers: 'Not one, not two — three shadows hide in this mansion…'"
             : "The host whispers: 'One of my guests is not who they seem. Find them before it's too late.'",
           room: "library",
           timestamp: 0,
@@ -161,7 +161,7 @@ export default function GameEngine() {
           if (!prev.framingActive && newTimeElapsed >= FRAMING_START_TICKS) {
             newClues.push({
               id: generateId(),
-              text: "⚠️ Something shifts in the manor. Evidence is being planted…",
+              text: "⚠️ Something shifts in the mansion. Evidence is being planted…",
               room: prev.currentRoom,
               timestamp: newTimeElapsed,
               category: "witness",
@@ -434,8 +434,8 @@ export default function GameEngine() {
     setGameState((prev) => ({
       ...prev,
       radioMinigameOpen: false,
-      // Reset to idle so it can be recharged for the next killer
-      radioState: "idle",
+      // One-time use — disable after the player uses it
+      radioState: "unavailable",
     }));
   }, []);
 
@@ -602,7 +602,7 @@ export default function GameEngine() {
           <span className="text-2xl">🔍</span>
           <div>
             <h1 className="text-primary font-bold text-lg leading-tight tracking-wider">DETECTIVE</h1>
-            <p className="text-muted-foreground text-xs tracking-widest">MANOR MYSTERY</p>
+            <p className="text-muted-foreground text-xs tracking-widest">MANSION MYSTERY</p>
           </div>
         </div>
 

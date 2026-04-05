@@ -6,7 +6,7 @@ interface IntroScreenProps {
 }
 
 const STORY_LINES = [
-  "A cold autumn night. Ravenswood Manor.",
+  "A cold autumn night. Ravenswood Mansion.",
   "Fifteen guests. One deadly secret.",
   "Someone among them is a killer.",
   "They will strike again... if you let them.",
@@ -98,7 +98,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
           >
             RAVENSWOOD
           </h1>
-          <h2 className="text-sm text-muted-foreground tracking-[0.4em] uppercase">Manor Mystery</h2>
+          <h2 className="text-sm text-muted-foreground tracking-[0.4em] uppercase">Mansion Mystery</h2>
         </div>
 
         {/* Story text */}
@@ -159,7 +159,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
                     </p>
                     <p className="text-xs opacity-70 mt-0.5">
                       {hardMode
-                        ? "Two killers. A hidden clue awaits in the manor."
+                        ? "Two killers. A hidden clue awaits in the mansion."
                         : "Two killers cooperate. Harder to catch. Enable for a real challenge."}
                     </p>
                   </div>
@@ -178,7 +178,7 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
               </button>
               {hardMode && (
                 <p className="text-xs text-red-400/70 text-center mt-2 italic animate-fade-in-up">
-                  A hidden note somewhere in the manor reveals a clue about the killers.
+                  A hidden note somewhere in the mansion reveals a clue about the killers.
                 </p>
               )}
             </div>

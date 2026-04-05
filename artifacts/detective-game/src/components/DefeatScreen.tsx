@@ -12,7 +12,7 @@ const TAUNT_MESSAGES = [
   "You accused the wrong person. The real killers slipped away.",
   "A grievous error. The killers watch you fail.",
   "Wrong. Dead wrong. Pun intended.",
-  "The manor grows quiet. The killers have fled. Justice denied.",
+  "The mansion grows quiet. The killers have fled. Justice denied.",
   "You were close... but not close enough.",
 ];
 
@@ -154,7 +154,7 @@ export function DefeatScreen({ killers, accusedId, persons, onRestart }: DefeatS
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden"
+      className="min-h-screen flex flex-col items-center justify-center relative"
       style={{
         fontFamily: "'Special Elite', 'Courier New', serif",
         background: "radial-gradient(ellipse at center, #1a0000 0%, #000000 100%)",

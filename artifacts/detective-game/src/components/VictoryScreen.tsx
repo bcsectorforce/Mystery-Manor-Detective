@@ -17,7 +17,7 @@ const CELEBRATION_MESSAGES = [
   "The killers have been unmasked!",
   "Justice has been served!",
   "A brilliant deduction!",
-  "The manor is safe once more!",
+  "The mansion is safe once more!",
 ];
 
 function KillerCard({ killer, index, total }: { killer: Person; index: number; total: number }) {
@@ -149,11 +149,11 @@ export function VictoryScreen({ killers, killHistory, clues, timeElapsed, confet
 
   return (
     <div
-      className="fixed inset-0 bg-black overflow-y-auto"
+      className="min-h-screen bg-black relative"
       style={{ fontFamily: "'Special Elite', 'Courier New', serif" }}
     >
-      {/* Confetti + glow — fixed behind content */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+      {/* Confetti + glow — absolute behind content */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {confettiPieces.map((piece, i) => (
           <div
             key={piece.id}
@@ -177,7 +177,7 @@ export function VictoryScreen({ killers, killHistory, clues, timeElapsed, confet
         />
       </div>
 
-      <div className="relative z-10 max-w-2xl w-full px-8 text-center mx-auto py-16">
+      <div className="relative z-10 max-w-2xl w-full px-8 text-center mx-auto py-12">
         <div
           className="text-8xl mb-4"
           style={{
