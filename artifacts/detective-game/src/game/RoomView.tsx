@@ -17,6 +17,8 @@ interface RoomViewProps {
   radioState?: "unavailable" | "idle" | "charging" | "charged";
   radioChargeProgress?: number;
   onRadioClick?: () => void;
+  blakeDoorVisible?: boolean;
+  onBlakeDoorClick?: () => void;
 }
 
 export function RoomView({
@@ -34,6 +36,8 @@ export function RoomView({
   radioState,
   radioChargeProgress = 0,
   onRadioClick,
+  blakeDoorVisible,
+  onBlakeDoorClick,
 }: RoomViewProps) {
   const roomPersons = persons.filter((p) => p.room === room.id);
   const bgPatterns: Record<RoomId, string> = {
@@ -184,9 +188,7 @@ export function RoomView({
           style={{ cursor: "pointer" }}
           transform={`translate(${secretNote.x}, ${secretNote.y})`}
         >
-          {/* Paper shadow */}
           <rect x={2} y={3} width={20} height={26} rx={2} fill="rgba(0,0,0,0.3)" />
-          {/* Paper body — aged parchment */}
           <rect
             x={0}
             y={0}
@@ -200,14 +202,11 @@ export function RoomView({
               filter: secretNote.seen ? "none" : "drop-shadow(0 0 4px rgba(245,197,24,0.7))",
             }}
           />
-          {/* Horizontal lines on note */}
           <line x1={3} y1={8} x2={17} y2={8} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
           <line x1={3} y1={12} x2={17} y2={12} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
           <line x1={3} y1={16} x2={17} y2={16} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
           <line x1={3} y1={20} x2={13} y2={20} stroke="#b8904a" strokeWidth={0.6} opacity={0.6} />
-          {/* Wax seal dot */}
           <circle cx={10} cy={22} r={3} fill="#8b0000" opacity={0.8} />
-          {/* Subtle glow pulse if not seen */}
           {!secretNote.seen && (
             <>
               <rect x={-3} y={-3} width={26} height={32} rx={4} fill="none" stroke="rgba(245,197,24,0.4)" strokeWidth={1}>
@@ -227,7 +226,6 @@ export function RoomView({
           onClick={radioState === "idle" || radioState === "charged" ? onRadioClick : undefined}
           style={{ cursor: radioState === "idle" || radioState === "charged" ? "pointer" : "default" }}
         >
-          {/* Radio body */}
           <rect x={272} y={52} width={72} height={42} rx={5}
             fill={radioState === "charged" ? "#0a1a0a" : "#1a1208"}
             stroke={radioState === "charged" ? "#00cc44" : "#5a3a10"}
@@ -237,24 +235,19 @@ export function RoomView({
               <animate attributeName="stroke-opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
             )}
           </rect>
-          {/* Speaker grille dots */}
           {[0,1,2,3,4,5].map((i) => (
             <circle key={i} cx={278 + (i % 3) * 7} cy={61 + Math.floor(i / 3) * 7} r={2}
               fill={radioState === "charged" ? "#004400" : "#2a1800"} />
           ))}
-          {/* Tuning dial */}
           <circle cx={322} cy={68} r={10} fill="#111" stroke="#444" strokeWidth={1.5} />
           <circle cx={322} cy={68} r={6} fill="#1a1a1a" />
           <line x1={322} y1={68} x2={326} y2={63} stroke="#c8860a" strokeWidth={1.5} strokeLinecap="round" />
-          {/* Power LED */}
           <circle cx={308} cy={62} r={3}
             fill={radioState === "charged" ? "#00ff44" : radioState === "charging" ? "#ffaa00" : "#330000"}
             filter={radioState === "charged" ? "url(#screenglow)" : undefined}
           />
-          {/* Antenna */}
           <line x1={336} y1={52} x2={342} y2={34} stroke="#444" strokeWidth={2} strokeLinecap="round" />
           <circle cx={342} cy={33} r={2} fill="#333" />
-          {/* Frequency readout */}
           <rect x={280} y={78} width={56} height={12} rx={2} fill="#001800" stroke="#003300" strokeWidth={1} />
           {radioState === "charged" ? (
             <text x={308} y={88} textAnchor="middle" fontSize={7} fill="#00ff44" fontFamily="monospace">READY</text>
@@ -263,12 +256,9 @@ export function RoomView({
           ) : (
             <text x={308} y={88} textAnchor="middle" fontSize={7} fill="#336633" fontFamily="monospace">88.1 MHz</text>
           )}
-          {/* Label above */}
           <text x={308} y={50} textAnchor="middle" fontSize={6} fill={radioState === "charged" ? "rgba(0,255,68,0.8)" : "rgba(245,197,24,0.6)"}>
             {radioState === "charged" ? "▶ USE RADIO" : radioState === "charging" ? "CHARGING…" : "▶ CHARGE RADIO"}
           </text>
-
-          {/* Charging bar (below radio) */}
           {radioState === "charging" && (
             <g>
               <rect x={272} y={97} width={72} height={8} rx={4} fill="#111" stroke="#333" strokeWidth={1} />
@@ -286,6 +276,60 @@ export function RoomView({
               <rect x={272} y={97} width={72} height={8} rx={4} fill="#00cc44" opacity={0.3} />
             </g>
           )}
+        </g>
+      )}
+
+      {/* ── BLAKE DOOR (library only, appears at 90s) ── */}
+      {room.id === "library" && blakeDoorVisible && isCurrentRoom && (
+        <g
+          onClick={onBlakeDoorClick}
+          style={{ cursor: "pointer" }}
+        >
+          {/* Door frame */}
+          <rect x={308} y={105} width={46} height={82} rx={3}
+            fill="#2a1808"
+            stroke="#c89040"
+            strokeWidth={2}
+          >
+            <animate attributeName="stroke-opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite" />
+          </rect>
+          {/* Door panel */}
+          <rect x={311} y={108} width={40} height={76} rx={2}
+            fill="#1e1004"
+            stroke="#a07030"
+            strokeWidth={1}
+          />
+          {/* Door panels decoration */}
+          <rect x={314} y={112} width={16} height={26} rx={1} fill="#251608" stroke="#7a5020" strokeWidth={0.8} />
+          <rect x={332} y={112} width={16} height={26} rx={1} fill="#251608" stroke="#7a5020" strokeWidth={0.8} />
+          <rect x={314} y={142} width={34} height={36} rx={1} fill="#251608" stroke="#7a5020" strokeWidth={0.8} />
+          {/* Doorknob */}
+          <circle cx={318} cy={149} r={4} fill="#c89040" />
+          <circle cx={318} cy={149} r={2.5} fill="#e0aa50" />
+          {/* Keyhole */}
+          <ellipse cx={318} cy={149} rx={1} ry={1.5} fill="#1a0c04" />
+          {/* Glow around door */}
+          <rect x={305} y={102} width={52} height={88} rx={4}
+            fill="none"
+            stroke="rgba(200,160,40,0.3)"
+            strokeWidth={3}
+          >
+            <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2.5s" repeatCount="indefinite" />
+          </rect>
+          {/* Light leaking from under door */}
+          <ellipse cx={331} cy={188} rx={18} ry={4}
+            fill="rgba(255,220,100,0.15)"
+          >
+            <animate attributeName="opacity" values="0.15;0.05;0.15" dur="3s" repeatCount="indefinite" />
+          </ellipse>
+          {/* Label */}
+          <text x={331} y={100} textAnchor="middle" fontSize={6.5}
+            fill="rgba(200,160,40,0.9)"
+            style={{ pointerEvents: "none" }}
+            fontFamily="monospace"
+          >
+            [enter]
+          </text>
         </g>
       )}
 

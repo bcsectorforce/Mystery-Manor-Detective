@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import type { GameState, Person, ClueEntry, KillEvent, RoomId, ConfettiPiece, SecretNote } from "./types";
+import type { GameState, Person, ClueEntry, KillEvent, RoomId, ConfettiPiece, SecretNote, BlakeQuestionKey } from "./types";
 import { ROOMS, isWarmColor } from "./types";
 import {
   initializePersons,
@@ -10,9 +10,11 @@ import {
   generateConfetti,
   formatTime,
 } from "./logic";
+import { BLAKE_QUESTIONS, ALL_BLAKE_KEYS } from "./blakeData";
 import { startAmbient, stopAmbient, resumeContext, playMiniCelebration, playKillSound } from "./audio";
 import { RadioMinigame } from "../components/RadioMinigame";
 import { StrangerCinematic } from "../components/StrangerCinematic";
+import { BlakeCinematic } from "../components/BlakeCinematic";
 import { RoomView } from "./RoomView";
 import { CluePanel } from "../components/CluePanel";
 import { PersonPanel } from "../components/PersonPanel";
@@ -31,6 +33,10 @@ const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
 const FRAMING_START_TICKS = 30 * 60;
 const STRANGER_TRIGGER_TICKS = 75 * 60;
+const TIMEOUT_TICKS = 150 * 60;
+const DARKNESS_START_TICKS = 30 * 60;
+const BLAKE_DOOR_TICKS = 90 * 60;
+const BLAKE_HINT_TICKS = 85 * 60;
 
 function buildSecretNote(persons: Person[]): SecretNote {
   const rooms: RoomId[] = ["library", "kitchen", "ballroom", "garden"];
@@ -49,11 +55,10 @@ function buildSecretNote(persons: Person[]): SecretNote {
   const warm2 = killers[1] ? isWarmColor(killers[1].color) : false;
   const warm3 = killers[2] ? isWarmColor(killers[2].color) : false;
   const warm4 = killers[3] ? isWarmColor(killers[3].color) : false;
-  return { roomId, x, y, warm1, warm2, warm3, warm4, killerCount: killers.length, seen: false };
+  const warm5 = killers[4] ? isWarmColor(killers[4].color) : false;
+  const warm6 = killers[5] ? isWarmColor(killers[5].color) : false;
+  return { roomId, x, y, warm1, warm2, warm3, warm4, warm5, warm6, killerCount: killers.length, seen: false };
 }
-
-const TIMEOUT_TICKS = 100 * 60;
-const DARKNESS_START_TICKS = 30 * 60;
 
 const EMPTY_STATE: GameState = {
   phase: "intro",
@@ -90,6 +95,10 @@ const EMPTY_STATE: GameState = {
   radioUsed: false,
   strangerTriggered: false,
   strangerPhase: "none",
+  blakeDoorVisible: false,
+  blakeDoorUsed: false,
+  blakePhase: "none",
+  blakeQuestion: "payment",
 };
 
 export default function GameEngine() {
@@ -102,15 +111,15 @@ export default function GameEngine() {
   const stateRef = useRef(gameState);
   stateRef.current = gameState;
 
-  // Start game immediately (no intro scare)
   const finalizeGameStart = useCallback((hardModeArg?: boolean) => {
     const hardMode = hardModeArg ?? stateRef.current.pendingHardMode ?? false;
-    const numKillers = hardMode ? 4 : 1;
+    const numKillers = hardMode ? 6 : 1;
     setFingerprintUsesLeft(2);
     const persons = initializePersons(numKillers);
     const suspicionMeterByPerson: Record<string, number> = {};
     persons.forEach((p) => { suspicionMeterByPerson[p.id] = 0; });
     const secretNote = hardMode ? buildSecretNote(persons) : null;
+    const blakeQuestion = ALL_BLAKE_KEYS[Math.floor(Math.random() * ALL_BLAKE_KEYS.length)];
 
     startAmbient(hardMode);
 
@@ -123,6 +132,7 @@ export default function GameEngine() {
       suspicionMeterByPerson,
       secretNote,
       notes: prev.notes,
+      blakeQuestion,
       clues: [
         {
           id: generateId(),
@@ -135,7 +145,7 @@ export default function GameEngine() {
         {
           id: generateId(),
           text: hardMode
-            ? "Four killers lurk among the guests. The host whispers: 'Not one, not two, not three — four shadows hide in this mansion…'"
+            ? "Six killers lurk among the guests. The host whispers: 'Not one, not two — six shadows hide in this mansion…'"
             : "The host whispers: 'One of my guests is not who they seem. Find them before it's too late.'",
           room: "library",
           timestamp: 0,
@@ -158,6 +168,9 @@ export default function GameEngine() {
         setGameState((prev) => {
           if (prev.phase !== "playing") return prev;
 
+          // Freeze during stranger or blake cinematic
+          if (prev.blakePhase !== "none") return prev;
+
           const newTimeElapsed = prev.timeElapsed + 1;
           const newClues: ClueEntry[] = [];
           const newKills: KillEvent[] = [];
@@ -169,6 +182,32 @@ export default function GameEngine() {
             return { ...prev, strangerTriggered: true, strangerPhase: "prompt" };
           }
           if (prev.strangerPhase !== "none") return prev;
+
+          // Blake hint clue at 85s
+          if (prev.timeElapsed < BLAKE_HINT_TICKS && newTimeElapsed >= BLAKE_HINT_TICKS) {
+            const hint = BLAKE_QUESTIONS[prev.blakeQuestion].hint;
+            newClues.push({
+              id: generateId(),
+              text: `📋 CLUE FOUND: ${hint}`,
+              room: "library",
+              timestamp: newTimeElapsed,
+              category: "physical",
+              severity: "high",
+            });
+          }
+
+          // Blake door appears at 90s
+          const newBlakeDoorVisible = prev.blakeDoorVisible || newTimeElapsed >= BLAKE_DOOR_TICKS;
+          if (!prev.blakeDoorVisible && newTimeElapsed >= BLAKE_DOOR_TICKS) {
+            newClues.push({
+              id: generateId(),
+              text: "🚪 A hidden door has appeared in the Library wall. Where does it lead?",
+              room: "library",
+              timestamp: newTimeElapsed,
+              category: "witness",
+              severity: "medium",
+            });
+          }
 
           const newFramingActive = prev.framingActive || newTimeElapsed >= FRAMING_START_TICKS;
           if (!prev.framingActive && newTimeElapsed >= FRAMING_START_TICKS) {
@@ -182,7 +221,6 @@ export default function GameEngine() {
             });
           }
 
-          // Caught killers are deactivated — they no longer kill or generate evidence
           const caughtSet = new Set(prev.killersCaught);
           const personsForUpdate = prev.persons.map((p) =>
             caughtSet.has(p.id) ? { ...p, isKiller: false } : p
@@ -196,12 +234,10 @@ export default function GameEngine() {
             (clue) => { newClues.push(clue); },
             (room) => room === prev.currentRoom
           );
-          // Restore isKiller flag for caught killers so they can still be identified
           const updatedPersons = rawUpdated.map((p) =>
             caughtSet.has(p.id) ? { ...p, isKiller: true } : p
           );
 
-          // Only generate behavior clues for active (uncaught) killers
           const killers = prev.persons.filter((p) => p.isKiller && !caughtSet.has(p.id));
           for (const killer of killers) {
             if (killer.state !== "dead") {
@@ -235,7 +271,6 @@ export default function GameEngine() {
             severity: "critical",
           }));
 
-          // Timeout — killer "kills" you at 90 seconds
           if (newTimeElapsed >= TIMEOUT_TICKS) {
             return {
               ...prev,
@@ -246,7 +281,6 @@ export default function GameEngine() {
             };
           }
 
-          // Radio: charge check (600 ticks ≈ 10 real seconds at 60fps)
           const CHARGE_TICKS = 600;
           let newRadioState = prev.radioState;
           if (prev.radioState === "charging" && newTimeElapsed - prev.radioChargeStartTick >= CHARGE_TICKS) {
@@ -262,6 +296,7 @@ export default function GameEngine() {
             timeElapsed: newTimeElapsed,
             screenShake: newScreenShake,
             framingActive: newFramingActive,
+            blakeDoorVisible: newBlakeDoorVisible,
             killSoundTrigger: newKills.length > 0 ? prev.killSoundTrigger + newKills.length : prev.killSoundTrigger,
             lastKillMessage: newKills.length > 0
               ? `${prev.persons.find((p) => p.id === newKills[0].victimId)?.name} was killed while you weren't watching!`
@@ -278,14 +313,12 @@ export default function GameEngine() {
     return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
   }, [gameState.phase]);
 
-  // Play kill sound when a kill happens
   useEffect(() => {
     if (gameState.killSoundTrigger > 0) {
       playKillSound();
     }
   }, [gameState.killSoundTrigger]);
 
-  // Clear screen shake
   useEffect(() => {
     if (gameState.screenShake) {
       const timer = setTimeout(() => {
@@ -295,7 +328,6 @@ export default function GameEngine() {
     }
   }, [gameState.screenShake]);
 
-  // Stop music when leaving playing/accusation phases
   useEffect(() => {
     if (gameState.phase === "jumpscare" || gameState.phase === "victory" || gameState.phase === "defeat") {
       stopAmbient();
@@ -370,7 +402,6 @@ export default function GameEngine() {
       const allCaught = newCaught.length >= allKillers.length;
 
       if (allCaught) {
-        // All killers caught — full victory!
         setGameState((prev) => ({
           ...prev,
           phase: "victory",
@@ -381,20 +412,17 @@ export default function GameEngine() {
           accusationInput: "",
         }));
       } else {
-        // Partial catch — mini celebration, keep playing
         playMiniCelebration();
         const remainingUncaught = allKillers.length - newCaught.length;
         setGameState((prev) => ({
           ...prev,
           phase: "playing",
           killersCaught: newCaught,
-          // Mark caught killer as dead so they leave the room and stop wandering
           persons: prev.persons.map((p) =>
             p.id === matchedKiller.id ? { ...p, state: "dead" as const } : p
           ),
           miniCelebration: { killerName: matchedKiller.name, killerId: matchedKiller.id },
           accusationInput: "",
-          // Enable radio now that 1+ killer caught (only if not already used)
           radioState: (prev.radioState === "unavailable" && !prev.radioUsed) ? "idle" : prev.radioState,
           clues: [...prev.clues, {
             id: generateId(),
@@ -407,7 +435,6 @@ export default function GameEngine() {
         }));
       }
     } else if (!hardMode && allKillers.some((k) => k.id === trimmed)) {
-      // Normal mode — single killer caught
       setGameState((prev) => ({
         ...prev,
         phase: "victory",
@@ -415,7 +442,6 @@ export default function GameEngine() {
         confettiPieces: generateConfetti(),
       }));
     } else {
-      // Wrong accusation — jumpscare!
       setGameState((prev) => ({
         ...prev,
         phase: "jumpscare",
@@ -430,7 +456,7 @@ export default function GameEngine() {
   }, []);
 
   const handleRadioClick = useCallback(() => {
-    const { radioState, timeElapsed, currentRoom } = stateRef.current;
+    const { radioState, currentRoom } = stateRef.current;
     if (currentRoom !== "library") return;
     if (radioState === "idle") {
       setGameState((prev) => ({
@@ -466,6 +492,37 @@ export default function GameEngine() {
 
   const handleStrangerRevealed = useCallback(() => {
     setGameState((prev) => ({ ...prev, strangerPhase: "none" }));
+  }, []);
+
+  const handleBlakeDoorClick = useCallback(() => {
+    setGameState((prev) => {
+      if (!prev.blakeDoorVisible || prev.blakeDoorUsed) return prev;
+      return { ...prev, blakePhase: "cinematic", blakeDoorUsed: true };
+    });
+  }, []);
+
+  const handleBlakeKilled = useCallback(() => {
+    setGameState((prev) => ({
+      ...prev,
+      blakePhase: "none",
+      phase: "jumpscare",
+      jumpscareReason: "wrong",
+    }));
+  }, []);
+
+  const handleBlakeFinished = useCallback(() => {
+    setGameState((prev) => ({
+      ...prev,
+      blakePhase: "none",
+      clues: [...prev.clues, {
+        id: generateId(),
+        text: "🎯 You returned from the pub with new information about a killer.",
+        room: "library",
+        timestamp: prev.timeElapsed,
+        category: "witness",
+        severity: "high",
+      }],
+    }));
   }, []);
 
   const handleJumpScareDone = useCallback(() => {
@@ -588,7 +645,7 @@ export default function GameEngine() {
       style={{ fontFamily: "'Special Elite', 'Courier New', serif" }}
       onClick={resumeContext}
     >
-      {/* Progressive darkness + red tint overlay (30s → 90s) */}
+      {/* Progressive darkness overlay */}
       {darknessProgress > 0 && (
         <div
           className="fixed inset-0 pointer-events-none z-[45]"
@@ -695,7 +752,7 @@ export default function GameEngine() {
         {/* Left sidebar */}
         <div className="w-48 border-r border-border bg-card/40 flex flex-col p-3 gap-2 z-20">
           <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Rooms</p>
-          {roomPersonCounts.map(({ room, aliveCount: ac, deadCount: dc }) => (
+          {roomPersonCounts.map(({ room, aliveCount: ac }) => (
             <button
               key={room.id}
               onClick={() => navigateToRoom(room.id)}
@@ -708,6 +765,9 @@ export default function GameEngine() {
               <div className="flex items-center gap-2 mb-1">
                 <span>{room.icon}</span>
                 <span className="font-bold">{room.name}</span>
+                {room.id === "library" && gameState.blakeDoorVisible && !gameState.blakeDoorUsed && (
+                  <span className="text-amber-400 text-xs" title="Hidden door!">🚪</span>
+                )}
               </div>
               <div className="flex gap-2 text-xs opacity-70">
                 <span className="text-green-400">👤 {ac}</span>
@@ -779,6 +839,8 @@ export default function GameEngine() {
                     : gameState.radioState === "charged" ? 1 : 0
                 }
                 onRadioClick={handleRadioClick}
+                blakeDoorVisible={gameState.blakeDoorVisible && !gameState.blakeDoorUsed}
+                onBlakeDoorClick={handleBlakeDoorClick}
               />
               <div
                 className="absolute top-2 left-2 text-xs font-mono px-2 py-0.5 rounded"
@@ -840,6 +902,18 @@ export default function GameEngine() {
           onStay={handleStrangerStay}
           onKilled={handleStrangerKilled}
           onRevealed={handleStrangerRevealed}
+        />
+      )}
+
+      {/* Blake cinematic (90s door) */}
+      {gameState.blakePhase === "cinematic" && (
+        <BlakeCinematic
+          question={gameState.blakeQuestion}
+          uncaughtKillers={gameState.persons.filter(
+            (p) => p.isKiller && !gameState.killersCaught.includes(p.id) && p.state !== "dead"
+          )}
+          onKilled={handleBlakeKilled}
+          onFinished={handleBlakeFinished}
         />
       )}
 

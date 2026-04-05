@@ -113,9 +113,21 @@ export interface SecretNote {
   warm2: boolean;
   warm3: boolean;
   warm4: boolean;
+  warm5: boolean;
+  warm6: boolean;
   killerCount: number;
   seen: boolean;
 }
+
+export type BlakeQuestionKey =
+  | "payment"
+  | "color"
+  | "year"
+  | "city"
+  | "book"
+  | "gpa"
+  | "time"
+  | "language";
 
 export interface GameState {
   phase: "intro" | "introPanic" | "playing" | "accusation" | "victory" | "defeat" | "jumpscare";
@@ -156,6 +168,10 @@ export interface GameState {
   radioChargeStartTick: number;
   radioMinigameOpen: boolean;
   radioUsed: boolean;
+  blakeDoorVisible: boolean;
+  blakeDoorUsed: boolean;
+  blakePhase: "none" | "cinematic";
+  blakeQuestion: BlakeQuestionKey;
 }
 
 export interface ConfettiPiece {
@@ -261,7 +277,8 @@ export const ROOMS: Room[] = [
 export const PERSON_NAMES = [
   "Victor", "Helena", "Sebastian", "Margot", "Dorian",
   "Isolde", "Edmund", "Rowena", "Leopold", "Beatrix",
-  "Caspian", "Lavinia", "Thaddeus", "Evangeline", "Mortimer"
+  "Caspian", "Lavinia", "Thaddeus", "Evangeline", "Mortimer",
+  "Florence", "Alistair", "Cordelia", "Barnaby",
 ];
 
 export const PERSONALITIES = [
@@ -280,6 +297,10 @@ export const PERSONALITIES = [
   "energetic and forgetful",
   "stoic and watchful",
   "charismatic and manipulative",
+  "dramatic and theatrical",
+  "secretive and analytical",
+  "cheerful but unsettling",
+  "cold and calculating",
 ];
 
 export const PERSON_COLORS = [
@@ -298,6 +319,10 @@ export const PERSON_COLORS = [
   { color: "#795548", secondary: "#5d4037", glow: "#d7ccc8" },
   { color: "#ff9800", secondary: "#f57c00", glow: "#ffeaa7" },
   { color: "#4db6ac", secondary: "#26a69a", glow: "#81ecec" },
+  { color: "#f06292", secondary: "#ec407a", glow: "#f48fb1" },
+  { color: "#aed581", secondary: "#9ccc65", glow: "#c5e1a5" },
+  { color: "#4fc3f7", secondary: "#29b6f6", glow: "#b3e5fc" },
+  { color: "#ce93d8", secondary: "#ba68c8", glow: "#e1bee7" },
 ];
 
 export const KILL_METHODS = [

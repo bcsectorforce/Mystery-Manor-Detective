@@ -874,88 +874,133 @@ export function createStaticSource(): { stop: () => void } {
   };
 }
 
+// Play a creepy synthesized digit tone (Web Audio formant approach for reliability)
+function playSynthDigit(ac: AudioContext, digit: string, startTime: number) {
+  // Map digits to formant-like pitch patterns
+  const digitFreqs: Record<string, number[]> = {
+    "0": [260, 520], "1": [300, 600], "2": [240, 480],
+    "3": [280, 560], "4": [320, 640], "5": [220, 440],
+    "6": [260, 520], "7": [300, 600], "8": [240, 480], "9": [280, 560],
+  };
+  const freqs = digitFreqs[digit] ?? [260, 520];
+
+  freqs.forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    const lp = ac.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 1200;
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(freq * 0.5, startTime + i * 0.04);
+    osc.frequency.linearRampToValueAtTime(freq * 0.4, startTime + 0.3);
+    g.gain.setValueAtTime(0, startTime + i * 0.04);
+    g.gain.linearRampToValueAtTime(0.06, startTime + i * 0.04 + 0.06);
+    g.gain.setValueAtTime(0.06, startTime + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.38);
+    osc.connect(lp); lp.connect(g); g.connect(ac.destination);
+    osc.start(startTime + i * 0.04);
+    osc.stop(startTime + 0.45);
+  });
+}
+
 export function playStrangerWhisper(firstDigit: string, lastDigit: string) {
   const ac = getCtx();
-  if (ac.state === "suspended") ac.resume();
-  const now = ac.currentTime;
 
-  const reverb = makeReverb(ac, 3, 1.8);
-  reverb.connect(ac.destination);
+  const doPlay = () => {
+    const now = ac.currentTime;
 
-  const dry = ac.createGain();
-  dry.gain.value = 0.5;
-  dry.connect(ac.destination);
+    const reverb = makeReverb(ac, 3, 1.8);
+    reverb.connect(ac.destination);
 
-  const reverbSend = ac.createGain();
-  reverbSend.gain.value = 0.7;
-  reverbSend.connect(reverb);
+    const reverbSend = ac.createGain();
+    reverbSend.gain.value = 0.7;
+    reverbSend.connect(reverb);
 
-  // Eerie low drone underneath the speech
-  const drone = ac.createOscillator();
-  const droneGain = ac.createGain();
-  drone.type = "sine";
-  drone.frequency.value = 60;
-  droneGain.gain.setValueAtTime(0, now);
-  droneGain.gain.linearRampToValueAtTime(0.08, now + 0.5);
-  droneGain.gain.setValueAtTime(0.08, now + 4.5);
-  droneGain.gain.linearRampToValueAtTime(0, now + 5.5);
-  drone.connect(droneGain);
-  droneGain.connect(reverbSend);
-  drone.start(now);
-  drone.stop(now + 6);
+    // Eerie low drone
+    const drone = ac.createOscillator();
+    const droneGain = ac.createGain();
+    drone.type = "sine";
+    drone.frequency.value = 60;
+    droneGain.gain.setValueAtTime(0, now);
+    droneGain.gain.linearRampToValueAtTime(0.09, now + 0.5);
+    droneGain.gain.setValueAtTime(0.09, now + 4.5);
+    droneGain.gain.linearRampToValueAtTime(0, now + 5.5);
+    drone.connect(droneGain);
+    droneGain.connect(reverbSend);
+    drone.start(now);
+    drone.stop(now + 6);
 
-  // High whisper noise layer
-  const bufSize = ac.sampleRate * 6;
-  const noiseBuf = ac.createBuffer(1, bufSize, ac.sampleRate);
-  const nd = noiseBuf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) nd[i] = Math.random() * 2 - 1;
-  const noise = ac.createBufferSource();
-  noise.buffer = noiseBuf;
-  const hp = ac.createBiquadFilter();
-  hp.type = "highpass";
-  hp.frequency.value = 4000;
-  const noiseGain = ac.createGain();
-  noiseGain.gain.setValueAtTime(0, now);
-  noiseGain.gain.linearRampToValueAtTime(0.04, now + 0.3);
-  noiseGain.gain.setValueAtTime(0.04, now + 4.5);
-  noiseGain.gain.linearRampToValueAtTime(0, now + 5.5);
-  noise.connect(hp);
-  hp.connect(noiseGain);
-  noiseGain.connect(reverbSend);
-  noise.start(now);
+    // High whisper noise layer
+    const bufSize = ac.sampleRate * 6;
+    const noiseBuf = ac.createBuffer(1, bufSize, ac.sampleRate);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) nd[i] = Math.random() * 2 - 1;
+    const noise = ac.createBufferSource();
+    noise.buffer = noiseBuf;
+    const hp = ac.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 3500;
+    const noiseGain = ac.createGain();
+    noiseGain.gain.setValueAtTime(0, now);
+    noiseGain.gain.linearRampToValueAtTime(0.055, now + 0.3);
+    noiseGain.gain.setValueAtTime(0.055, now + 4.5);
+    noiseGain.gain.linearRampToValueAtTime(0, now + 5.5);
+    noise.connect(hp);
+    hp.connect(noiseGain);
+    noiseGain.connect(reverbSend);
+    noise.start(now);
 
-  // Use Web Speech API with a slow, low-pitched whisper
-  setTimeout(() => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const msg = `The killer's ID... starts with ${firstDigit}... and ends with... ${lastDigit}`;
-    const utter = new SpeechSynthesisUtterance(msg);
-    utter.rate = 0.6;
-    utter.pitch = 0.35;
-    utter.volume = 1.0;
+    // Web Audio formant digit tones at the key moments (always plays, reliable)
+    // First digit tone at ~1.2s, last digit tone at ~3.0s
+    playSynthDigit(ac, firstDigit, now + 1.2);
+    playSynthDigit(ac, lastDigit, now + 3.0);
 
-    const applyVoiceAndSpeak = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const deepVoice = voices.find(
-        (v) => v.name.toLowerCase().includes("male") || v.lang === "en-GB" || v.lang.startsWith("en")
-      );
-      if (deepVoice) utter.voice = deepVoice;
-      window.speechSynthesis.speak(utter);
-    };
+    // Web Speech API — best-effort, not essential (formants are the fallback)
+    setTimeout(() => {
+      try {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const msg = `The killer's I D starts with ${firstDigit} and ends with ${lastDigit}`;
+        const utter = new SpeechSynthesisUtterance(msg);
+        utter.rate = 0.65;
+        utter.pitch = 0.4;
+        utter.volume = 0.95;
 
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      applyVoiceAndSpeak();
-    } else {
-      // Voices not loaded yet — wait for them
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        applyVoiceAndSpeak();
-      };
-      // Fallback: also try immediately in case event never fires
-      setTimeout(applyVoiceAndSpeak, 300);
-    }
-  }, 600);
+        const speak = () => {
+          try {
+            const voices = window.speechSynthesis.getVoices();
+            const voice = voices.find(
+              (v) =>
+                v.lang.startsWith("en") &&
+                (v.name.toLowerCase().includes("male") ||
+                  v.name.toLowerCase().includes("daniel") ||
+                  v.name.toLowerCase().includes("alex") ||
+                  v.lang === "en-GB")
+            ) ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
+            if (voice) utter.voice = voice;
+            window.speechSynthesis.speak(utter);
+          } catch (_) {}
+        };
+
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          speak();
+        } else {
+          window.speechSynthesis.onvoiceschanged = () => {
+            window.speechSynthesis.onvoiceschanged = null;
+            speak();
+          };
+          setTimeout(speak, 400);
+        }
+      } catch (_) {}
+    }, 600);
+  };
+
+  if (ac.state === "suspended") {
+    ac.resume().then(doPlay).catch(doPlay);
+  } else {
+    doPlay();
+  }
 }
 
 export function playStrangerKnifeStrike() {

@@ -39,11 +39,12 @@ function distance(x1: number, y1: number, x2: number, y2: number) {
 
 export function initializePersons(numKillers: number = 1): Person[] {
   const shuffledColors = [...PERSON_COLORS].sort(() => Math.random() - 0.5);
+  const totalPersons = PERSON_NAMES.length;
 
   // Pick unique killer indices
   const killerIndices = new Set<number>();
-  while (killerIndices.size < Math.min(numKillers, 15)) {
-    killerIndices.add(randomInt(0, 14));
+  while (killerIndices.size < Math.min(numKillers, totalPersons)) {
+    killerIndices.add(randomInt(0, totalPersons - 1));
   }
 
   const rooms: RoomId[] = ["library", "kitchen", "ballroom", "garden"];
@@ -53,7 +54,7 @@ export function initializePersons(numKillers: number = 1): Person[] {
     const bounds = ROOM_BOUNDS[room];
     const x = randomBetween(bounds.minX, bounds.maxX);
     const y = randomBetween(bounds.minY, bounds.maxY);
-    const c = shuffledColors[i];
+    const c = shuffledColors[i % shuffledColors.length];
     const activities = ROOM_ACTIVITIES[room];
     const activity = activities[randomInt(0, activities.length - 1)];
 
@@ -76,7 +77,7 @@ export function initializePersons(numKillers: number = 1): Person[] {
       killCooldown: 0,
       suspicionLevel: 0,
       alibi: generateAlibi(name),
-      personality: PERSONALITIES[i],
+      personality: PERSONALITIES[i] ?? PERSONALITIES[0],
       speed: randomBetween(0.4, 0.9),
       lastSeenByPlayer: 0,
       eyeAngle: 0,
@@ -120,6 +121,10 @@ function generateAccessories(index: number): string[] {
     ["glasses"],
     ["hat", "tie"],
     ["necklace", "glasses"],
+    [],
+    ["hat", "necklace"],
+    ["glasses", "necklace"],
+    ["tie", "hat"],
     [],
   ];
   return all[index] || [];

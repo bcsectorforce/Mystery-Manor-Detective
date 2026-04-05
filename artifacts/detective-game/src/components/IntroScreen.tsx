@@ -7,7 +7,7 @@ interface IntroScreenProps {
 
 const STORY_LINES = [
   "A cold autumn night. Ravenswood Mansion.",
-  "Fifteen guests. One deadly secret.",
+  "Nineteen guests. One deadly secret.",
   "Someone among them is a killer.",
   "They will strike again... if you let them.",
 ];
@@ -159,8 +159,8 @@ export function IntroScreen({ onStart }: IntroScreenProps) {
                     </p>
                     <p className="text-xs opacity-70 mt-0.5">
                       {hardMode
-                        ? "Two killers. A hidden clue awaits in the mansion."
-                        : "Two killers cooperate. Harder to catch. Enable for a real challenge."}
+                        ? "Six killers. A hidden door awaits in the library."
+                        : "Six killers cooperate. Harder to catch. Enable for a real challenge."}
                     </p>
                   </div>
                 </div>
