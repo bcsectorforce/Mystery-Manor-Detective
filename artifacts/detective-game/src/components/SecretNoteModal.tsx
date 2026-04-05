@@ -22,14 +22,28 @@ function buildNoteText(note: SecretNote): string {
   }
 
   // 3 killers
-  const warmCount = [note.warm1, note.warm2, note.warm3].filter(Boolean).length;
-  if (warmCount === 3)
-    return "Three wolves stalk this mansion. All three cloak themselves in warm hues — reds, oranges, the colour of spilled blood. Beware every warm face you see.";
-  if (warmCount === 0)
-    return "Three wolves stalk this mansion. All three wear cold colours — blues, greens, grey as a winter grave. The chill you feel is no accident.";
-  if (warmCount === 2)
-    return "Three wolves stalk this mansion. Two wear warm hues — reds and oranges. The third hides in cold colours — blues or greens. Do not trust a warm smile.";
-  return "Three wolves stalk this mansion. Two wear cold hues — blues, greens and grey. The third dresses in warm colours — reds or oranges. Find all three before the night ends.";
+  if (note.killerCount === 3) {
+    const warmCount = [note.warm1, note.warm2, note.warm3].filter(Boolean).length;
+    if (warmCount === 3)
+      return "Three wolves stalk this mansion. All three cloak themselves in warm hues — reds, oranges, the colour of spilled blood. Beware every warm face you see.";
+    if (warmCount === 0)
+      return "Three wolves stalk this mansion. All three wear cold colours — blues, greens, grey as a winter grave. The chill you feel is no accident.";
+    if (warmCount === 2)
+      return "Three wolves stalk this mansion. Two wear warm hues — reds and oranges. The third hides in cold colours — blues or greens. Do not trust a warm smile.";
+    return "Three wolves stalk this mansion. Two wear cold hues — blues, greens and grey. The third dresses in warm colours — reds or oranges. Find all three before the night ends.";
+  }
+
+  // 4 killers
+  const warmCount4 = [note.warm1, note.warm2, note.warm3, note.warm4].filter(Boolean).length;
+  if (warmCount4 === 4)
+    return "Four wolves stalk this mansion. All four hide behind warm hues — reds, oranges, ambers, the colour of fire and blood. Every warm smile conceals a blade.";
+  if (warmCount4 === 0)
+    return "Four wolves stalk this mansion. All four wear cold colours — blues, greens, greys as cold as their hearts. The chill in the air is no accident.";
+  if (warmCount4 === 3)
+    return "Four wolves stalk this mansion. Three wear the warmth of flame — reds and oranges. One hides in cold colours — blues or greens. Find them all before night falls.";
+  if (warmCount4 === 1)
+    return "Four wolves stalk this mansion. Three wear cold hues — blues, greens, grey as stone. One dresses in warm colours — reds or oranges. Do not be deceived.";
+  return "Four wolves stalk this mansion. Two wear warm hues — reds and oranges. Two wear cold colours — blues or greens. Balance is a lie they use to hide.";
 }
 
 export function SecretNoteModal({ note, onClose }: SecretNoteModalProps) {

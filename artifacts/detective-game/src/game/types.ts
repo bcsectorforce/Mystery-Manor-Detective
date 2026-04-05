@@ -112,6 +112,7 @@ export interface SecretNote {
   warm1: boolean;
   warm2: boolean;
   warm3: boolean;
+  warm4: boolean;
   killerCount: number;
   seen: boolean;
 }
@@ -120,6 +121,8 @@ export interface GameState {
   phase: "intro" | "introPanic" | "playing" | "accusation" | "victory" | "defeat" | "jumpscare";
   jumpscareReason?: "wrong" | "timeout";
   pendingHardMode?: boolean;
+  strangerTriggered: boolean;
+  strangerPhase: "none" | "prompt" | "cinematic";
   killSoundTrigger: number;
   currentRoom: RoomId;
   persons: Person[];

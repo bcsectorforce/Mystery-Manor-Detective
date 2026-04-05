@@ -12,6 +12,7 @@ import {
 } from "./logic";
 import { startAmbient, stopAmbient, resumeContext, playMiniCelebration, playKillSound } from "./audio";
 import { RadioMinigame } from "../components/RadioMinigame";
+import { StrangerCinematic } from "../components/StrangerCinematic";
 import { RoomView } from "./RoomView";
 import { CluePanel } from "../components/CluePanel";
 import { PersonPanel } from "../components/PersonPanel";
@@ -28,6 +29,7 @@ import { FingerprintModal } from "../components/FingerprintModal";
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
 const FRAMING_START_TICKS = 30 * 60;
+const STRANGER_TRIGGER_TICKS = 75 * 60;
 
 function buildSecretNote(persons: Person[]): SecretNote {
   const rooms: RoomId[] = ["library", "kitchen", "ballroom", "garden"];
@@ -45,10 +47,11 @@ function buildSecretNote(persons: Person[]): SecretNote {
   const warm1 = killers[0] ? isWarmColor(killers[0].color) : false;
   const warm2 = killers[1] ? isWarmColor(killers[1].color) : false;
   const warm3 = killers[2] ? isWarmColor(killers[2].color) : false;
-  return { roomId, x, y, warm1, warm2, warm3, killerCount: killers.length, seen: false };
+  const warm4 = killers[3] ? isWarmColor(killers[3].color) : false;
+  return { roomId, x, y, warm1, warm2, warm3, warm4, killerCount: killers.length, seen: false };
 }
 
-const TIMEOUT_TICKS = 90 * 60;
+const TIMEOUT_TICKS = 100 * 60;
 const DARKNESS_START_TICKS = 30 * 60;
 
 const EMPTY_STATE: GameState = {
@@ -83,6 +86,8 @@ const EMPTY_STATE: GameState = {
   radioState: "unavailable",
   radioChargeStartTick: 0,
   radioMinigameOpen: false,
+  strangerTriggered: false,
+  strangerPhase: "none",
 };
 
 export default function GameEngine() {
@@ -98,7 +103,7 @@ export default function GameEngine() {
   // Start game immediately (no intro scare)
   const finalizeGameStart = useCallback((hardModeArg?: boolean) => {
     const hardMode = hardModeArg ?? stateRef.current.pendingHardMode ?? false;
-    const numKillers = hardMode ? 3 : 1;
+    const numKillers = hardMode ? 4 : 1;
     setFingerprintUsesLeft(2);
     const persons = initializePersons(numKillers);
     const suspicionMeterByPerson: Record<string, number> = {};
@@ -128,7 +133,7 @@ export default function GameEngine() {
         {
           id: generateId(),
           text: hardMode
-            ? "Three killers lurk among the guests. The host whispers: 'Not one, not two — three shadows hide in this mansion…'"
+            ? "Four killers lurk among the guests. The host whispers: 'Not one, not two, not three — four shadows hide in this mansion…'"
             : "The host whispers: 'One of my guests is not who they seem. Find them before it's too late.'",
           room: "library",
           timestamp: 0,
@@ -156,6 +161,12 @@ export default function GameEngine() {
           const newKills: KillEvent[] = [];
           let newTotalKills = prev.totalKills;
           let newScreenShake = false;
+
+          // Stranger trigger at 75s (hard mode only) — freeze game while prompt/cinematic is active
+          if (prev.hardMode && !prev.strangerTriggered && prev.timeElapsed >= STRANGER_TRIGGER_TICKS) {
+            return { ...prev, strangerTriggered: true, strangerPhase: "prompt" };
+          }
+          if (prev.strangerPhase !== "none") return prev;
 
           const newFramingActive = prev.framingActive || newTimeElapsed >= FRAMING_START_TICKS;
           if (!prev.framingActive && newTimeElapsed >= FRAMING_START_TICKS) {
@@ -437,6 +448,22 @@ export default function GameEngine() {
       // One-time use — disable after the player uses it
       radioState: "unavailable",
     }));
+  }, []);
+
+  const handleStrangerFollow = useCallback(() => {
+    setGameState((prev) => ({ ...prev, strangerPhase: "cinematic" }));
+  }, []);
+
+  const handleStrangerStay = useCallback(() => {
+    setGameState((prev) => ({ ...prev, strangerPhase: "none" }));
+  }, []);
+
+  const handleStrangerKilled = useCallback(() => {
+    setGameState((prev) => ({ ...prev, strangerPhase: "none", phase: "jumpscare", jumpscareReason: "timeout" }));
+  }, []);
+
+  const handleStrangerRevealed = useCallback(() => {
+    setGameState((prev) => ({ ...prev, strangerPhase: "none" }));
   }, []);
 
   const handleJumpScareDone = useCallback(() => {
@@ -798,6 +825,20 @@ export default function GameEngine() {
       {/* Secret note modal */}
       {gameState.showSecretNote && gameState.secretNote && (
         <SecretNoteModal note={gameState.secretNote} onClose={closeSecretNote} />
+      )}
+
+      {/* Stranger encounter (hard mode — 75s) */}
+      {gameState.hardMode && gameState.strangerPhase !== "none" && (
+        <StrangerCinematic
+          phase={gameState.strangerPhase}
+          uncaughtKillerIds={gameState.persons
+            .filter((p) => p.isKiller && !gameState.killersCaught.includes(p.id))
+            .map((p) => p.id)}
+          onFollow={handleStrangerFollow}
+          onStay={handleStrangerStay}
+          onKilled={handleStrangerKilled}
+          onRevealed={handleStrangerRevealed}
+        />
       )}
 
       {/* Radio minigame */}

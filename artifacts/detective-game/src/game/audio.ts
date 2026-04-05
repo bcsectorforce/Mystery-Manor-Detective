@@ -874,6 +874,106 @@ export function createStaticSource(): { stop: () => void } {
   };
 }
 
+export function playStrangerWhisper(firstDigit: string, lastDigit: string) {
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+  const now = ac.currentTime;
+
+  const reverb = makeReverb(ac, 3, 1.8);
+  reverb.connect(ac.destination);
+
+  const dry = ac.createGain();
+  dry.gain.value = 0.5;
+  dry.connect(ac.destination);
+
+  const reverbSend = ac.createGain();
+  reverbSend.gain.value = 0.7;
+  reverbSend.connect(reverb);
+
+  // Eerie low drone underneath the speech
+  const drone = ac.createOscillator();
+  const droneGain = ac.createGain();
+  drone.type = "sine";
+  drone.frequency.value = 60;
+  droneGain.gain.setValueAtTime(0, now);
+  droneGain.gain.linearRampToValueAtTime(0.08, now + 0.5);
+  droneGain.gain.setValueAtTime(0.08, now + 4.5);
+  droneGain.gain.linearRampToValueAtTime(0, now + 5.5);
+  drone.connect(droneGain);
+  droneGain.connect(reverbSend);
+  drone.start(now);
+  drone.stop(now + 6);
+
+  // High whisper noise layer
+  const bufSize = ac.sampleRate * 6;
+  const noiseBuf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) nd[i] = Math.random() * 2 - 1;
+  const noise = ac.createBufferSource();
+  noise.buffer = noiseBuf;
+  const hp = ac.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 4000;
+  const noiseGain = ac.createGain();
+  noiseGain.gain.setValueAtTime(0, now);
+  noiseGain.gain.linearRampToValueAtTime(0.04, now + 0.3);
+  noiseGain.gain.setValueAtTime(0.04, now + 4.5);
+  noiseGain.gain.linearRampToValueAtTime(0, now + 5.5);
+  noise.connect(hp);
+  hp.connect(noiseGain);
+  noiseGain.connect(reverbSend);
+  noise.start(now);
+
+  // Use Web Speech API with a slow, low-pitched whisper
+  setTimeout(() => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const msg = `The killer's ID... starts with ${firstDigit}... and ends with... ${lastDigit}`;
+    const utter = new SpeechSynthesisUtterance(msg);
+    utter.rate = 0.65;
+    utter.pitch = 0.4;
+    utter.volume = 0.9;
+    const voices = window.speechSynthesis.getVoices();
+    const deepVoice = voices.find((v) => v.name.toLowerCase().includes("male") || v.lang === "en-GB");
+    if (deepVoice) utter.voice = deepVoice;
+    window.speechSynthesis.speak(utter);
+  }, 500);
+}
+
+export function playStrangerKnifeStrike() {
+  const ac = getCtx();
+  if (ac.state === "suspended") ac.resume();
+  const now = ac.currentTime;
+
+  // Metallic scrape
+  const scrapeLen = Math.floor(ac.sampleRate * 0.15);
+  const scrapeBuf = ac.createBuffer(1, scrapeLen, ac.sampleRate);
+  const sd = scrapeBuf.getChannelData(0);
+  for (let i = 0; i < scrapeLen; i++) sd[i] = (Math.random() * 2 - 1) * (1 - i / scrapeLen);
+  const scrape = ac.createBufferSource();
+  scrape.buffer = scrapeBuf;
+  const scrapeHP = ac.createBiquadFilter();
+  scrapeHP.type = "bandpass";
+  scrapeHP.frequency.value = 3500;
+  scrapeHP.Q.value = 2;
+  const scrapeG = ac.createGain();
+  scrapeG.gain.value = 0.5;
+  scrape.connect(scrapeHP); scrapeHP.connect(scrapeG); scrapeG.connect(ac.destination);
+  scrape.start(now);
+
+  // Heavy thud impact
+  const thud = ac.createOscillator();
+  thud.type = "sine";
+  thud.frequency.setValueAtTime(200, now + 0.12);
+  thud.frequency.exponentialRampToValueAtTime(25, now + 0.45);
+  const thudG = ac.createGain();
+  thudG.gain.setValueAtTime(0, now + 0.12);
+  thudG.gain.linearRampToValueAtTime(1.1, now + 0.13);
+  thudG.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+  thud.connect(thudG); thudG.connect(ac.destination);
+  thud.start(now + 0.12); thud.stop(now + 0.5);
+}
+
 export function playRevealChime() {
   const ac = getCtx();
   if (ac.state === "suspended") ac.resume();
