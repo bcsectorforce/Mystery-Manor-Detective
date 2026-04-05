@@ -11,7 +11,6 @@ import {
   formatTime,
 } from "./logic";
 import { startAmbient, stopAmbient, resumeContext, playMiniCelebration, playKillSound } from "./audio";
-import { IntroScare } from "../components/IntroScare";
 import { RoomView } from "./RoomView";
 import { CluePanel } from "../components/CluePanel";
 import { PersonPanel } from "../components/PersonPanel";
@@ -92,19 +91,9 @@ export default function GameEngine() {
   const stateRef = useRef(gameState);
   stateRef.current = gameState;
 
-  // Begin intro scare, then start game
-  const handleIntroStart = useCallback((hardMode: boolean) => {
-    setGameState((prev) => ({
-      ...EMPTY_STATE,
-      phase: "introPanic",
-      pendingHardMode: hardMode,
-      notes: prev.notes,
-    }));
-  }, []);
-
-  // Finalize game start after intro scare
-  const finalizeGameStart = useCallback(() => {
-    const hardMode = stateRef.current.pendingHardMode ?? false;
+  // Start game immediately (no intro scare)
+  const finalizeGameStart = useCallback((hardModeArg?: boolean) => {
+    const hardMode = hardModeArg ?? stateRef.current.pendingHardMode ?? false;
     const numKillers = hardMode ? 3 : 1;
     setFingerprintUsesLeft(2);
     const persons = initializePersons(numKillers);
@@ -176,9 +165,13 @@ export default function GameEngine() {
             });
           }
 
-          const killers = prev.persons.filter((p) => p.isKiller);
-          const updatedPersons = updatePersons(
-            prev.persons,
+          // Caught killers are deactivated — they no longer kill or generate evidence
+          const caughtSet = new Set(prev.killersCaught);
+          const personsForUpdate = prev.persons.map((p) =>
+            caughtSet.has(p.id) ? { ...p, isKiller: false } : p
+          );
+          const rawUpdated = updatePersons(
+            personsForUpdate,
             prev.currentRoom,
             prev.investigatedRooms,
             newTimeElapsed,
@@ -186,7 +179,13 @@ export default function GameEngine() {
             (clue) => { newClues.push(clue); },
             (room) => room === prev.currentRoom
           );
+          // Restore isKiller flag for caught killers so they can still be identified
+          const updatedPersons = rawUpdated.map((p) =>
+            caughtSet.has(p.id) ? { ...p, isKiller: true } : p
+          );
 
+          // Only generate behavior clues for active (uncaught) killers
+          const killers = prev.persons.filter((p) => p.isKiller && !caughtSet.has(p.id));
           for (const killer of killers) {
             if (killer.state !== "dead") {
               const bc = generateBehaviorClue(killer, updatedPersons, newTimeElapsed);
@@ -447,11 +446,7 @@ export default function GameEngine() {
   }, []);
 
   if (gameState.phase === "intro") {
-    return <IntroScreen onStart={handleIntroStart} />;
-  }
-
-  if (gameState.phase === "introPanic") {
-    return <IntroScare onDone={finalizeGameStart} />;
+    return <IntroScreen onStart={finalizeGameStart} />;
   }
 
   if (gameState.phase === "jumpscare") {
@@ -459,10 +454,10 @@ export default function GameEngine() {
   }
 
   if (gameState.phase === "victory") {
-    const killer = gameState.persons.find((p) => p.isKiller);
+    const killers = gameState.persons.filter((p) => p.isKiller);
     return (
       <VictoryScreen
-        killer={killer!}
+        killers={killers}
         killHistory={gameState.killHistory}
         clues={gameState.clues}
         timeElapsed={gameState.timeElapsed}
@@ -473,10 +468,10 @@ export default function GameEngine() {
   }
 
   if (gameState.phase === "defeat") {
-    const killer = gameState.persons.find((p) => p.isKiller);
+    const killers = gameState.persons.filter((p) => p.isKiller);
     return (
       <DefeatScreen
-        killer={killer!}
+        killers={killers}
         accusedId={gameState.accusationInput}
         persons={gameState.persons}
         onRestart={restartGame}
