@@ -28,6 +28,7 @@ export function StrangerCinematic({ phase, uncaughtKillerIds, onFollow, onStay, 
   const [outcome] = useState<"killed" | "revealed">(() =>
     Math.random() < 0.45 ? "killed" : "revealed"
   );
+  const [revealedDigits, setRevealedDigits] = useState<{ first: string; last: string } | null>(null);
   const animRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
@@ -69,12 +70,13 @@ export function StrangerCinematic({ phase, uncaughtKillerIds, onFollow, onStay, 
                   setAnimPhase("outcome_killed");
                   animRef.current = setTimeout(() => { onKilled(); }, 2200);
                 } else {
-                  setAnimPhase("outcome_revealed");
                   const killerId = uncaughtKillerIds[Math.floor(Math.random() * uncaughtKillerIds.length)] ?? "00000";
                   const first = killerId[0] ?? "?";
                   const last = killerId[killerId.length - 1] ?? "?";
+                  setRevealedDigits({ first, last });
+                  setAnimPhase("outcome_revealed");
                   playStrangerWhisper(first, last);
-                  animRef.current = setTimeout(() => { onRevealed(); }, 8500);
+                  animRef.current = setTimeout(() => { onRevealed(); }, 9000);
                 }
               }
             };
@@ -198,8 +200,8 @@ export function StrangerCinematic({ phase, uncaughtKillerIds, onFollow, onStay, 
           <KnifeOutcome />
         )}
 
-        {animPhase === "outcome_revealed" && (
-          <RevealOutcome />
+        {animPhase === "outcome_revealed" && revealedDigits && (
+          <RevealOutcome first={revealedDigits.first} last={revealedDigits.last} />
         )}
       </div>
 
@@ -410,40 +412,183 @@ function KnifeOutcome() {
   );
 }
 
-function RevealOutcome() {
-  const [showText, setShowText] = useState(false);
+function RevealOutcome({ first, last }: { first: string; last: string }) {
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
-    const t = setTimeout(() => setShowText(true), 1200);
-    return () => clearTimeout(t);
+    const t1 = setTimeout(() => setStep(1), 350);
+    const t2 = setTimeout(() => setStep(2), 1100);
+    const t3 = setTimeout(() => setStep(3), 2000);
+    const t4 = setTimeout(() => setStep(4), 3100);
+    return () => { [t1, t2, t3, t4].forEach(clearTimeout); };
   }, []);
 
+  const bW = 268;
+  const bH = 158;
+
   return (
-    <div className="flex flex-col items-center justify-center gap-6 z-20 relative px-8 text-center">
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 20,
+        width: "100%",
+        padding: "0 24px",
+      }}
+    >
+      {/* Stranger silhouette */}
       <div
-        className="text-5xl"
-        style={{ filter: "drop-shadow(0 0 16px rgba(200,160,80,0.6))", animation: "pulse 3s infinite" }}
+        style={{
+          flexShrink: 0,
+          opacity: step >= 1 ? 1 : 0,
+          transform: step >= 1 ? "translateY(0)" : "translateY(20px)",
+          transition: "opacity 0.7s, transform 0.7s",
+          filter: "drop-shadow(0 0 18px rgba(180,0,0,0.7))",
+        }}
       >
-        🕯
+        <svg width="88" height="118" viewBox="0 0 88 118">
+          <ellipse cx="44" cy="24" rx="12" ry="14" fill="#0d0505" />
+          <rect x="28" y="36" width="32" height="50" rx="4" fill="#080404" />
+          <rect x="10" y="40" width="16" height="34" rx="3" fill="#080404" />
+          <rect x="62" y="40" width="16" height="34" rx="3" fill="#080404" />
+          <rect x="30" y="84" width="12" height="30" rx="3" fill="#080404" />
+          <rect x="46" y="84" width="12" height="30" rx="3" fill="#080404" />
+          <ellipse cx="38" cy="23" rx="2.5" ry="2.5" fill="rgba(210,40,40,0.95)" />
+          <ellipse cx="50" cy="23" rx="2.5" ry="2.5" fill="rgba(210,40,40,0.95)" />
+          <line x1="62" y1="55" x2="76" y2="73" stroke="rgba(200,200,220,0.35)" strokeWidth="2" />
+          <ellipse cx="44" cy="116" rx="20" ry="4" fill="rgba(0,0,0,0.5)" />
+        </svg>
       </div>
-      {showText && (
-        <div className="flex flex-col gap-3 animate-fade-in-up">
+
+      {/* Comic speech bubble */}
+      <div
+        style={{
+          position: "relative",
+          width: bW,
+          minHeight: bH,
+          flexShrink: 0,
+          opacity: step >= 2 ? 1 : 0,
+          transform: step >= 2 ? "scale(1)" : "scale(0.6)",
+          transformOrigin: "left center",
+          transition: "opacity 0.35s, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
+      >
+        {/* SVG bubble shape with left-pointing tail */}
+        <svg
+          width={bW}
+          height={bH}
+          viewBox={`0 0 ${bW} ${bH}`}
+          style={{ position: "absolute", top: 0, left: 0 }}
+        >
+          <path
+            d={`
+              M 26 4
+              L ${bW - 6} 4 Q ${bW} 4 ${bW} 10
+              L ${bW} ${bH - 10} Q ${bW} ${bH} ${bW - 6} ${bH}
+              L 22 ${bH} Q 18 ${bH} 18 ${bH - 6}
+              L 18 ${Math.round(bH * 0.64)}
+              L 2 ${Math.round(bH * 0.5)}
+              L 18 ${Math.round(bH * 0.36)}
+              L 18 10 Q 18 4 26 4 Z
+            `}
+            fill="rgba(248, 238, 214, 0.97)"
+            stroke="#1a0808"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          {/* Tiny scratch marks for horror-comic texture */}
+          <line x1="36" y1="4" x2="38" y2="1" stroke="#3a1008" strokeWidth="1.2" opacity="0.55" />
+          <line x1="70" y1="4" x2="72" y2="1" stroke="#3a1008" strokeWidth="1.2" opacity="0.4" />
+          <line x1={bW} y1="28" x2={bW + 2} y2="31" stroke="#3a1008" strokeWidth="1.2" opacity="0.4" />
+          <line x1={bW} y1="50" x2={bW + 3} y2="52" stroke="#3a1008" strokeWidth="1.2" opacity="0.35" />
+        </svg>
+
+        {/* Bubble text content */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0, left: 20, right: 0, bottom: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            padding: "14px 16px 14px 12px",
+          }}
+        >
+          {/* Line 1 */}
           <p
-            className="text-xl font-bold tracking-wider"
-            style={{ color: "#e8d0a0", fontFamily: "'Special Elite', 'Courier New', serif", textShadow: "0 0 20px rgba(200,140,30,0.5)" }}
+            style={{
+              fontFamily: "'Special Elite', 'Courier New', serif",
+              fontSize: 13,
+              color: "#1a0808",
+              lineHeight: 1.55,
+              margin: 0,
+              opacity: step >= 3 ? 1 : 0,
+              transition: "opacity 0.5s",
+            }}
           >
-            "Listen carefully…"
+            "The killer's badge ID…
           </p>
-          <p className="text-amber-200/50 text-sm tracking-widest italic">
-            A whisper in the dark. Listen for the digits…
-          </p>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            <p className="text-amber-500/70 text-xs tracking-widest font-mono uppercase">Audio playing…</p>
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+
+          {/* Digits reveal */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              flexWrap: "wrap",
+              gap: "4px 6px",
+              marginTop: 6,
+              opacity: step >= 4 ? 1 : 0,
+              transform: step >= 4 ? "scale(1)" : "scale(0.8)",
+              transition: "opacity 0.4s, transform 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+            }}
+          >
+            <span style={{ fontFamily: "serif", fontSize: 12, color: "#3a1808" }}>starts with</span>
+            <span
+              style={{
+                fontSize: 44,
+                fontWeight: 900,
+                fontFamily: "monospace",
+                color: "#7a0000",
+                lineHeight: 1,
+                textShadow: "0 0 8px rgba(180,0,0,0.5), 0 2px 0 rgba(0,0,0,0.3)",
+                letterSpacing: "-1px",
+              }}
+            >
+              {first}
+            </span>
+            <span style={{ fontFamily: "serif", fontSize: 12, color: "#3a1808" }}>ends with</span>
+            <span
+              style={{
+                fontSize: 44,
+                fontWeight: 900,
+                fontFamily: "monospace",
+                color: "#7a0000",
+                lineHeight: 1,
+                textShadow: "0 0 8px rgba(180,0,0,0.5), 0 2px 0 rgba(0,0,0,0.3)",
+                letterSpacing: "-1px",
+              }}
+            >
+              {last}
+            </span>
           </div>
+
+          {/* Closing line */}
+          <p
+            style={{
+              fontFamily: "serif",
+              fontSize: 10,
+              color: "#5a3828",
+              fontStyle: "italic",
+              margin: "6px 0 0",
+              opacity: step >= 4 ? 0.8 : 0,
+              transition: "opacity 0.5s 0.3s",
+            }}
+          >
+            Remember it…"
+          </p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1042,47 +1042,6 @@ export function playStrangerWhisper(firstDigit: string, lastDigit: string) {
     // — Synth digit tones (always audible, punchy, reverb-drenched) —
     playSynthDigit(ac, firstDigit, now + 1.4, reverb);
     playSynthDigit(ac, lastDigit, now + 3.2, reverb);
-
-    // — Web Speech API whisper (louder, deeper, slower) —
-    setTimeout(() => {
-      try {
-        if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
-        const msg = `The killer... starts with... ${firstDigit}... ends with... ${lastDigit}`;
-        const utter = new SpeechSynthesisUtterance(msg);
-        utter.rate = 0.5;
-        utter.pitch = 0.1;
-        utter.volume = 1.0;
-
-        const speak = () => {
-          try {
-            const voices = window.speechSynthesis.getVoices();
-            const voice =
-              voices.find((v) => v.lang.startsWith("en") && (
-                v.name.toLowerCase().includes("daniel") ||
-                v.name.toLowerCase().includes("alex") ||
-                v.name.toLowerCase().includes("male") ||
-                v.lang === "en-GB"
-              )) ??
-              voices.find((v) => v.lang.startsWith("en")) ??
-              voices[0];
-            if (voice) utter.voice = voice;
-            window.speechSynthesis.speak(utter);
-          } catch (_) {}
-        };
-
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-          speak();
-        } else {
-          window.speechSynthesis.onvoiceschanged = () => {
-            window.speechSynthesis.onvoiceschanged = null;
-            speak();
-          };
-          setTimeout(speak, 400);
-        }
-      } catch (_) {}
-    }, 700);
   };
 
   if (ac.state === "suspended") {
