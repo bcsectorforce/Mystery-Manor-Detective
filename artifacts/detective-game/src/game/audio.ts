@@ -874,32 +874,71 @@ export function createStaticSource(): { stop: () => void } {
   };
 }
 
-// Play a creepy synthesized digit tone (Web Audio formant approach for reliability)
-function playSynthDigit(ac: AudioContext, digit: string, startTime: number) {
-  // Map digits to formant-like pitch patterns
-  const digitFreqs: Record<string, number[]> = {
-    "0": [260, 520], "1": [300, 600], "2": [240, 480],
-    "3": [280, 560], "4": [320, 640], "5": [220, 440],
-    "6": [260, 520], "7": [300, 600], "8": [240, 480], "9": [280, 560],
-  };
-  const freqs = digitFreqs[digit] ?? [260, 520];
+// Distortion waveshaper curve for demonic crunch
+function makeDistortionCurve(amount: number): Float32Array {
+  const samples = 256;
+  const curve = new Float32Array(samples);
+  for (let i = 0; i < samples; i++) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+  }
+  return curve;
+}
 
-  freqs.forEach((freq, i) => {
+// Play a punchy, reverb-drenched synth tone for a digit (always audible)
+function playSynthDigit(ac: AudioContext, digit: string, startTime: number, reverbNode: ConvolverNode) {
+  const digitFreqs: Record<string, number[]> = {
+    "0": [130, 195], "1": [150, 225], "2": [120, 180],
+    "3": [140, 210], "4": [160, 240], "5": [110, 165],
+    "6": [130, 195], "7": [150, 225], "8": [120, 180], "9": [140, 210],
+  };
+  const freqs = digitFreqs[digit] ?? [130, 195];
+
+  // Master send for the digit chord
+  const masterG = ac.createGain();
+  masterG.gain.setValueAtTime(0, startTime);
+  masterG.gain.linearRampToValueAtTime(0.55, startTime + 0.07);
+  masterG.gain.setValueAtTime(0.55, startTime + 0.28);
+  masterG.gain.exponentialRampToValueAtTime(0.001, startTime + 0.7);
+
+  // Distortion for crunch
+  const shaper = ac.createWaveShaper();
+  shaper.curve = makeDistortionCurve(80);
+  shaper.oversample = "4x";
+
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 900;
+
+  const reverbSend = ac.createGain();
+  reverbSend.gain.value = 0.9;
+
+  masterG.connect(shaper);
+  shaper.connect(lp);
+  lp.connect(ac.destination);
+  lp.connect(reverbSend);
+  reverbSend.connect(reverbNode);
+
+  freqs.forEach((freq) => {
     const osc = ac.createOscillator();
-    const g = ac.createGain();
-    const lp = ac.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 1200;
     osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(freq * 0.5, startTime + i * 0.04);
-    osc.frequency.linearRampToValueAtTime(freq * 0.4, startTime + 0.3);
-    g.gain.setValueAtTime(0, startTime + i * 0.04);
-    g.gain.linearRampToValueAtTime(0.06, startTime + i * 0.04 + 0.06);
-    g.gain.setValueAtTime(0.06, startTime + 0.2);
-    g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.38);
-    osc.connect(lp); lp.connect(g); g.connect(ac.destination);
-    osc.start(startTime + i * 0.04);
-    osc.stop(startTime + 0.45);
+    osc.frequency.setValueAtTime(freq, startTime);
+    osc.frequency.linearRampToValueAtTime(freq * 0.88, startTime + 0.55);
+    osc.connect(masterG);
+    osc.start(startTime);
+    osc.stop(startTime + 0.8);
+
+    // Sub-octave for weight
+    const sub = ac.createOscillator();
+    sub.type = "square";
+    sub.frequency.setValueAtTime(freq * 0.5, startTime);
+    sub.frequency.linearRampToValueAtTime(freq * 0.44, startTime + 0.55);
+    const subG = ac.createGain();
+    subG.gain.value = 0.4;
+    sub.connect(subG);
+    subG.connect(masterG);
+    sub.start(startTime);
+    sub.stop(startTime + 0.8);
   });
 }
 
@@ -909,74 +948,124 @@ export function playStrangerWhisper(firstDigit: string, lastDigit: string) {
   const doPlay = () => {
     const now = ac.currentTime;
 
-    const reverb = makeReverb(ac, 3, 1.8);
-    reverb.connect(ac.destination);
+    // Master limiter/compressor to keep things loud but not clipping
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -12;
+    comp.knee.value = 6;
+    comp.ratio.value = 4;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.25;
+    comp.connect(ac.destination);
+
+    const reverb = makeReverb(ac, 4, 2.2);
+    reverb.connect(comp);
 
     const reverbSend = ac.createGain();
-    reverbSend.gain.value = 0.7;
+    reverbSend.gain.value = 1.0;
     reverbSend.connect(reverb);
 
-    // Eerie low drone
-    const drone = ac.createOscillator();
-    const droneGain = ac.createGain();
-    drone.type = "sine";
-    drone.frequency.value = 60;
-    droneGain.gain.setValueAtTime(0, now);
-    droneGain.gain.linearRampToValueAtTime(0.09, now + 0.5);
-    droneGain.gain.setValueAtTime(0.09, now + 4.5);
-    droneGain.gain.linearRampToValueAtTime(0, now + 5.5);
-    drone.connect(droneGain);
-    droneGain.connect(reverbSend);
-    drone.start(now);
-    drone.stop(now + 6);
+    // — Scary intro sting: dissonant tritone scrape —
+    [220, 311].forEach((f, i) => {
+      const osc = ac.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(f, now);
+      osc.frequency.linearRampToValueAtTime(f * 0.85, now + 0.6);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, now + i * 0.03);
+      g.gain.linearRampToValueAtTime(0.18, now + i * 0.03 + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      const shaper = ac.createWaveShaper();
+      shaper.curve = makeDistortionCurve(60);
+      osc.connect(shaper); shaper.connect(g);
+      g.connect(reverbSend); g.connect(comp);
+      osc.start(now + i * 0.03); osc.stop(now + 0.8);
+    });
 
-    // High whisper noise layer
-    const bufSize = ac.sampleRate * 6;
+    // — Heavy sub-bass drone (much louder, distorted) —
+    const drone = ac.createOscillator();
+    const droneDistort = ac.createWaveShaper();
+    droneDistort.curve = makeDistortionCurve(40);
+    const droneGain = ac.createGain();
+    drone.type = "sawtooth";
+    drone.frequency.value = 55;
+    droneGain.gain.setValueAtTime(0, now);
+    droneGain.gain.linearRampToValueAtTime(0.28, now + 0.6);
+    droneGain.gain.setValueAtTime(0.28, now + 4.8);
+    droneGain.gain.linearRampToValueAtTime(0, now + 6.0);
+    drone.connect(droneDistort); droneDistort.connect(droneGain);
+    droneGain.connect(reverbSend);
+    droneGain.connect(comp);
+    drone.start(now);
+    drone.stop(now + 6.2);
+
+    // — Tremolo growl layer (slow tremolo on a low oscillator = demonic breathing) —
+    const growl = ac.createOscillator();
+    growl.type = "triangle";
+    growl.frequency.value = 80;
+    const lfo = ac.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 4.5;
+    const lfoGain = ac.createGain();
+    lfoGain.gain.value = 0.14;
+    const growlBase = ac.createGain();
+    growlBase.gain.value = 0.20;
+    lfo.connect(lfoGain);
+    lfoGain.connect(growlBase.gain);
+    growl.connect(growlBase);
+    growlBase.connect(reverbSend);
+    growlBase.connect(comp);
+    growl.start(now + 0.3); growl.stop(now + 6.0);
+    lfo.start(now + 0.3); lfo.stop(now + 6.0);
+
+    // — Whisper breath noise (louder, broader frequency range) —
+    const bufSize = ac.sampleRate * 7;
     const noiseBuf = ac.createBuffer(1, bufSize, ac.sampleRate);
     const nd = noiseBuf.getChannelData(0);
     for (let i = 0; i < bufSize; i++) nd[i] = Math.random() * 2 - 1;
     const noise = ac.createBufferSource();
     noise.buffer = noiseBuf;
-    const hp = ac.createBiquadFilter();
-    hp.type = "highpass";
-    hp.frequency.value = 3500;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2200;
+    bp.Q.value = 0.8;
     const noiseGain = ac.createGain();
     noiseGain.gain.setValueAtTime(0, now);
-    noiseGain.gain.linearRampToValueAtTime(0.055, now + 0.3);
-    noiseGain.gain.setValueAtTime(0.055, now + 4.5);
-    noiseGain.gain.linearRampToValueAtTime(0, now + 5.5);
-    noise.connect(hp);
-    hp.connect(noiseGain);
+    noiseGain.gain.linearRampToValueAtTime(0.22, now + 0.4);
+    noiseGain.gain.setValueAtTime(0.22, now + 4.8);
+    noiseGain.gain.linearRampToValueAtTime(0, now + 6.0);
+    noise.connect(bp);
+    bp.connect(noiseGain);
     noiseGain.connect(reverbSend);
+    noiseGain.connect(comp);
     noise.start(now);
 
-    // Web Audio formant digit tones at the key moments (always plays, reliable)
-    // First digit tone at ~1.2s, last digit tone at ~3.0s
-    playSynthDigit(ac, firstDigit, now + 1.2);
-    playSynthDigit(ac, lastDigit, now + 3.0);
+    // — Synth digit tones (always audible, punchy, reverb-drenched) —
+    playSynthDigit(ac, firstDigit, now + 1.4, reverb);
+    playSynthDigit(ac, lastDigit, now + 3.2, reverb);
 
-    // Web Speech API — best-effort, not essential (formants are the fallback)
+    // — Web Speech API whisper (louder, deeper, slower) —
     setTimeout(() => {
       try {
         if (!window.speechSynthesis) return;
         window.speechSynthesis.cancel();
-        const msg = `The killer's I D starts with ${firstDigit} and ends with ${lastDigit}`;
+        const msg = `The killer... starts with... ${firstDigit}... ends with... ${lastDigit}`;
         const utter = new SpeechSynthesisUtterance(msg);
-        utter.rate = 0.65;
-        utter.pitch = 0.4;
-        utter.volume = 0.95;
+        utter.rate = 0.5;
+        utter.pitch = 0.1;
+        utter.volume = 1.0;
 
         const speak = () => {
           try {
             const voices = window.speechSynthesis.getVoices();
-            const voice = voices.find(
-              (v) =>
-                v.lang.startsWith("en") &&
-                (v.name.toLowerCase().includes("male") ||
-                  v.name.toLowerCase().includes("daniel") ||
-                  v.name.toLowerCase().includes("alex") ||
-                  v.lang === "en-GB")
-            ) ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
+            const voice =
+              voices.find((v) => v.lang.startsWith("en") && (
+                v.name.toLowerCase().includes("daniel") ||
+                v.name.toLowerCase().includes("alex") ||
+                v.name.toLowerCase().includes("male") ||
+                v.lang === "en-GB"
+              )) ??
+              voices.find((v) => v.lang.startsWith("en")) ??
+              voices[0];
             if (voice) utter.voice = voice;
             window.speechSynthesis.speak(utter);
           } catch (_) {}
@@ -993,7 +1082,7 @@ export function playStrangerWhisper(firstDigit: string, lastDigit: string) {
           setTimeout(speak, 400);
         }
       } catch (_) {}
-    }, 600);
+    }, 700);
   };
 
   if (ac.state === "suspended") {
