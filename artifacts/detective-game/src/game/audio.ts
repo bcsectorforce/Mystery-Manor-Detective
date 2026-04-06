@@ -1085,6 +1085,120 @@ export function playStrangerKnifeStrike() {
   thud.start(now + 0.12); thud.stop(now + 0.5);
 }
 
+// ─── Pub / Bar Ambience ──────────────────────────────────────────────────────
+
+let pubStopCallbacks: Array<() => void> = [];
+
+function playGlassClink(ac: AudioContext, when: number) {
+  const freqs = [1320, 1760, 2200];
+  freqs.forEach((f, i) => {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = "sine";
+    o.frequency.value = f + (Math.random() - 0.5) * 120;
+    g.gain.setValueAtTime(0, when + i * 0.008);
+    g.gain.linearRampToValueAtTime(0.07, when + i * 0.008 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + i * 0.008 + 0.35);
+    o.connect(g); g.connect(ac.destination);
+    o.start(when + i * 0.008); o.stop(when + i * 0.008 + 0.4);
+  });
+}
+
+export function startPubAmbience() {
+  const ac = getCtx();
+  const resume = ac.state === "suspended" ? ac.resume() : Promise.resolve();
+  resume.then(() => {
+    const nodes: AudioNode[] = [];
+    const oscs: OscillatorNode[] = [];
+    const srcs: AudioBufferSourceNode[] = [];
+    let stopped = false;
+
+    // — Crowd murmur: brown-ish noise through a low bandpass —
+    const bufLen = ac.sampleRate * 4;
+    const nBuf = ac.createBuffer(2, bufLen, ac.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const ch = nBuf.getChannelData(c);
+      let last = 0;
+      for (let i = 0; i < bufLen; i++) {
+        // Brown noise via leaky integrator
+        last = (last + 0.02 * (Math.random() * 2 - 1)) * 0.99;
+        ch[i] = last * 18;
+      }
+    }
+    const crowd = ac.createBufferSource();
+    crowd.buffer = nBuf;
+    crowd.loop = true;
+    const crowdBP = ac.createBiquadFilter();
+    crowdBP.type = "bandpass";
+    crowdBP.frequency.value = 320;
+    crowdBP.Q.value = 0.6;
+    const crowdGain = ac.createGain();
+    crowdGain.gain.setValueAtTime(0, ac.currentTime);
+    crowdGain.gain.linearRampToValueAtTime(0.28, ac.currentTime + 1.8);
+    crowd.connect(crowdBP); crowdBP.connect(crowdGain); crowdGain.connect(ac.destination);
+    crowd.start();
+    srcs.push(crowd);
+    nodes.push(crowdGain);
+
+    // — Warm background chord drone (A minor, detuned slightly for warmth) —
+    const chordFreqs = [110, 130.8, 164.8, 220, 246.9];
+    chordFreqs.forEach((f, i) => {
+      const o = ac.createOscillator();
+      o.type = i % 2 === 0 ? "triangle" : "sine";
+      o.frequency.value = f * (1 + (Math.random() - 0.5) * 0.003);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, ac.currentTime + i * 0.15);
+      g.gain.linearRampToValueAtTime(0.025, ac.currentTime + i * 0.15 + 1.2);
+      o.connect(g); g.connect(ac.destination);
+      o.start();
+      oscs.push(o);
+      nodes.push(g);
+    });
+
+    // — LFO tremolo on the chord drone for warmth —
+    const lfo = ac.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.9 + Math.random() * 0.3;
+    const lfoG = ac.createGain();
+    lfoG.gain.value = 0.008;
+    lfo.connect(lfoG);
+    lfo.start();
+    oscs.push(lfo);
+
+    // — Occasional glass clinks —
+    const scheduleClank = () => {
+      if (stopped) return;
+      const delay = 2500 + Math.random() * 4500;
+      const t = setTimeout(() => {
+        if (stopped) return;
+        playGlassClink(ac, ac.currentTime + 0.05);
+        scheduleClank();
+      }, delay);
+      pubStopCallbacks.push(() => clearTimeout(t));
+    };
+    scheduleClank();
+
+    // — Stop function —
+    const stop = () => {
+      stopped = true;
+      const now = ac.currentTime;
+      nodes.forEach((n) => {
+        try { (n as GainNode).gain.setValueAtTime((n as GainNode).gain.value, now); (n as GainNode).gain.linearRampToValueAtTime(0, now + 1.2); } catch (_) {}
+      });
+      setTimeout(() => {
+        oscs.forEach((o) => { try { o.stop(); } catch (_) {} });
+        srcs.forEach((s) => { try { s.stop(); } catch (_) {} });
+      }, 1300);
+    };
+    pubStopCallbacks.push(stop);
+  });
+}
+
+export function stopPubAmbience() {
+  pubStopCallbacks.forEach((fn) => { try { fn(); } catch (_) {} });
+  pubStopCallbacks = [];
+}
+
 export function playRevealChime() {
   const ac = getCtx();
   if (ac.state === "suspended") ac.resume();
